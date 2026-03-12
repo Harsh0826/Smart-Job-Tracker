@@ -7,6 +7,8 @@ export type ApplicationStatus =
   | "GHOSTED"
   | "WITHDRAWN";
 
+  
+
 export interface Application {
   id: string;
   company: string;
