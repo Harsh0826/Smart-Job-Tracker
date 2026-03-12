@@ -1,0 +1,18 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
+export const env = {
+  port: process.env.PORT || "5000",
+  supabaseUrl: process.env.SUPABASE_URL || "",
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  openAIApiKey: process.env.OPENAI_API_KEY || "",
+};
+
+if (!env.supabaseUrl) {
+  throw new Error("Missing SUPABASE_URL");
+}
+
+if (!env.supabaseServiceRoleKey) {
+  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+}
