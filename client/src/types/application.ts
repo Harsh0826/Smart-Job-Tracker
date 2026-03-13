@@ -1,11 +1,14 @@
-export type ApplicationStatus =
-  | "APPLIED"
-  | "SCREENING"
-  | "INTERVIEW"
-  | "OFFER"
-  | "REJECTED"
-  | "GHOSTED"
-  | "WITHDRAWN";
+export const APPLICATION_STATUSES = [
+  "APPLIED",
+  "SCREENING",
+  "INTERVIEW",
+  "OFFER",
+  "REJECTED",
+  "GHOSTED",
+  "WITHDRAWN",
+] as const;
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export interface Application {
   id: string;
@@ -37,7 +40,7 @@ export interface Application {
   updated_at: string;
 }
 
-export interface CreateApplicationInput {
+export interface CreateApplicationPayload {
   company: string;
   role: string;
   job_description: string;
@@ -63,7 +66,7 @@ export interface CreateApplicationInput {
   notes?: string | null;
 }
 
-export interface UpdateApplicationInput {
+export interface UpdateApplicationPayload {
   company?: string;
   role?: string;
   job_description?: string;

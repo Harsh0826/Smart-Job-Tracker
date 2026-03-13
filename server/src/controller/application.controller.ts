@@ -10,9 +10,11 @@ import {
 export async function createApplicationHandler(
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) {
   try {
+    console.log("Incoming application payload:", req.body);
+
     const {
       company,
       role,
@@ -45,31 +47,51 @@ export async function createApplicationHandler(
       });
     }
 
-    const application = await createApplication({
-      company,
-      role,
-      job_description,
-      job_url,
+    const payload = {
+      company: String(company).trim(),
+      role: String(role).trim(),
+      job_description: String(job_description).trim(),
 
-      status,
-      applied_date,
-      follow_up_date,
+      job_url:
+        typeof job_url === "string" && job_url.trim() ? job_url.trim() : null,
 
-      salary_min,
-      salary_max,
+      status: status || "APPLIED",
 
-      source,
-      contact_name,
-      contact_email,
+      applied_date: applied_date || null,
+      follow_up_date: follow_up_date || null,
 
-      resume_version,
+      salary_min:
+        salary_min === "" || salary_min === undefined || salary_min === null
+          ? null
+          : Number(salary_min),
 
-      required_skills,
-      missing_skills,
-      suggestions,
+      salary_max:
+        salary_max === "" || salary_max === undefined || salary_max === null
+          ? null
+          : Number(salary_max),
 
-      notes,
-    });
+      source: typeof source === "string" && source.trim() ? source.trim() : null,
+      contact_name:
+        typeof contact_name === "string" && contact_name.trim()
+          ? contact_name.trim()
+          : null,
+      contact_email:
+        typeof contact_email === "string" && contact_email.trim()
+          ? contact_email.trim()
+          : null,
+      resume_version:
+        typeof resume_version === "string" && resume_version.trim()
+          ? resume_version.trim()
+          : null,
+
+      required_skills: required_skills ?? null,
+      missing_skills: missing_skills ?? null,
+      suggestions: suggestions ?? null,
+
+      notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
+    };
+
+    const application = await createApplication(payload);
 
     return res.status(201).json(application);
   } catch (error) {
@@ -80,7 +102,7 @@ export async function createApplicationHandler(
 export async function getAllApplicationsHandler(
   _req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) {
   try {
     const applications = await getAllApplications();
@@ -93,7 +115,7 @@ export async function getAllApplicationsHandler(
 export async function getApplicationByIdHandler(
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) {
   try {
     const application = await getApplicationById(req.params.id as string);
@@ -106,7 +128,7 @@ export async function getApplicationByIdHandler(
 export async function updateApplicationHandler(
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) {
   try {
     const updated = await updateApplication(req.params.id as string, req.body);
@@ -119,7 +141,7 @@ export async function updateApplicationHandler(
 export async function deleteApplicationHandler(
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) {
   try {
     const result = await deleteApplication(req.params.id as string);
