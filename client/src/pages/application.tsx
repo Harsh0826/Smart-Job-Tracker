@@ -8,6 +8,7 @@ import type {
   ApplicationStatus,
   CreateApplicationPayload,
 } from "../types/application";
+import AppNavbar from "../components/ui/appNavbar";
 
 export default function ApplicationsPage() {
   const {
@@ -75,6 +76,7 @@ export default function ApplicationsPage() {
 
   return (
     <main className="app-shell">
+        <AppNavbar />
       <div className="app-container">
         <PageHeader
           title="Smart Job Tracker"

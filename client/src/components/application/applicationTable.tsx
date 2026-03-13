@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   APPLICATION_STATUSES,
   type Application,
@@ -31,6 +32,8 @@ export default function ApplicationTable({
   onStatusChange,
   onDelete,
 }: Props) {
+  const navigate = useNavigate();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<SortOption>("created_desc");
@@ -55,23 +58,27 @@ export default function ApplicationTable({
     sorted.sort((a, b) => {
       switch (sortBy) {
         case "created_asc":
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-
+          return (
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
         case "created_desc":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
         case "company_asc":
           return a.company.localeCompare(b.company);
-
         case "company_desc":
           return b.company.localeCompare(a.company);
-
         case "applied_asc":
-          return new Date(a.applied_date ?? 0).getTime() - new Date(b.applied_date ?? 0).getTime();
-
+          return (
+            new Date(a.applied_date ?? 0).getTime() -
+            new Date(b.applied_date ?? 0).getTime()
+          );
         case "applied_desc":
-          return new Date(b.applied_date ?? 0).getTime() - new Date(a.applied_date ?? 0).getTime();
-
+          return (
+            new Date(b.applied_date ?? 0).getTime() -
+            new Date(a.applied_date ?? 0).getTime()
+          );
         default:
           return 0;
       }
@@ -125,7 +132,8 @@ export default function ApplicationTable({
 
       <div className="toolbar-row">
         <div className="toolbar-meta">
-          Showing {filteredApplications.length} of {applications.length} applications
+          Showing {filteredApplications.length} of {applications.length}{" "}
+          applications
         </div>
 
         <div>
@@ -182,7 +190,10 @@ export default function ApplicationTable({
 
             <tbody>
               {filteredApplications.map((app) => (
-                <tr key={app.id}>
+                <tr
+                  key={app.id}
+                  onClick={() => navigate(`/applications/${app.id}`)}
+                >
                   <td>
                     <div className="table-company">{app.company}</div>
                   </td>
@@ -195,14 +206,18 @@ export default function ApplicationTable({
                   <td>{formatDate(app.applied_date)}</td>
                   <td>{formatDate(app.follow_up_date)}</td>
                   <td>
-                    <div className="table-actions">
-                      
-
+                    <div
+                      className="table-actions"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <select
                         className="select table-status-select"
                         value={app.status}
                         onChange={(e) =>
-                          void onStatusChange(app.id, e.target.value as ApplicationStatus)
+                          void onStatusChange(
+                            app.id,
+                            e.target.value as ApplicationStatus,
+                          )
                         }
                       >
                         {APPLICATION_STATUSES.map((status) => (
@@ -218,13 +233,12 @@ export default function ApplicationTable({
                       >
                         Edit
                       </button>
-
                       <button
                         className="btn btn-danger"
                         type="button"
                         onClick={() => {
                           const confirmed = window.confirm(
-                            `Delete application for ${app.company}?`
+                            `Delete application for ${app.company}?`,
                           );
                           if (confirmed) {
                             void onDelete(app.id);
