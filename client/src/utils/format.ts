@@ -7,7 +7,11 @@ export function formatDate(value: string | null): string {
     return value;
   }
 
-  return date.toLocaleDateString();
+  return date.toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function formatCurrency(value: number | null): string {
