@@ -55,6 +55,9 @@ export interface CreateApplicationInput {
   contact_email?: string | null;
 
   resume_version?: string | null;
+  resume_file_name: string | null;
+  resume_file_key: string | null;
+  resume_uploaded_at: string | null;
 
   required_skills?: string[] | null;
   missing_skills?: string[] | null;
@@ -81,7 +84,9 @@ export interface UpdateApplicationInput {
   contact_email?: string | null;
 
   resume_version?: string | null;
-
+resume_file_name?: string | null;
+resume_file_key?: string | null;
+resume_uploaded_at?: string | null;
   required_skills?: string[] | null;
   missing_skills?: string[] | null;
   suggestions?: string[] | null;
