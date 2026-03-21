@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  completeResumeUpload,
+  presignResumeUpload,
+} from "../api/resume";
 import ApplicationForm from "../components/application/applicationForm";
 import ApplicationTable from "../components/application/applicationTable";
+import AppNavbar from "../components/ui/appNavbar";
 import PageHeader from "../components/ui/header";
 import { useApplications } from "../hooks/useApplication";
 import type {
@@ -8,9 +14,12 @@ import type {
   ApplicationStatus,
   CreateApplicationPayload,
 } from "../types/application";
-import AppNavbar from "../components/ui/appNavbar";
+
+
 
 export default function ApplicationsPage() {
+  const navigate = useNavigate();
+
   const {
     applications,
     loading,
@@ -28,28 +37,82 @@ export default function ApplicationsPage() {
 
     const timeout = window.setTimeout(() => {
       setSuccessMessage(null);
-    }, 2500);
+    }, 3000);
 
     return () => window.clearTimeout(timeout);
   }, [successMessage]);
 
-  async function handleFormSubmit(payload: CreateApplicationPayload) {
+  async function uploadResumeForApplication(
+    applicationId: string,
+    resumeFile: File
+  ) {
+    const presigned = await presignResumeUpload({
+      applicationId,
+      fileName: resumeFile.name,
+      contentType: resumeFile.type,
+    });
+
+    const uploadResponse = await fetch(presigned.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": resumeFile.type,
+      },
+      body: resumeFile,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("Failed to upload resume.");
+    }
+
+    const completed = await completeResumeUpload({
+      applicationId,
+      fileName: resumeFile.name,
+      fileKey: presigned.fileKey,
+    });
+
+    return completed.application;
+  }
+
+  async function handleFormSubmit(
+    payload: CreateApplicationPayload,
+    resumeFile?: File | null
+  ) {
     if (editingApplication) {
-      await updateApplication(editingApplication.id, payload);
-      setEditingApplication(null);
-      setSuccessMessage("Application updated successfully.");
+      let updatedApplication = await updateApplication(editingApplication.id, payload);
+
+      if (resumeFile) {
+        updatedApplication = await uploadResumeForApplication(
+          editingApplication.id,
+          resumeFile
+        );
+      }
+
+      setEditingApplication(updatedApplication);
+      setSuccessMessage(
+        resumeFile
+          ? "Application and resume updated successfully."
+          : "Application updated successfully."
+      );
       return;
     }
 
-    await createApplication(payload);
+    const createdApplication = await createApplication(payload);
+
+    if (resumeFile) {
+      await uploadResumeForApplication(createdApplication.id, resumeFile);
+      setSuccessMessage("Application and resume created successfully.");
+      navigate(`/applications/${createdApplication.id}`);
+      return;
+    }
+
     setSuccessMessage("Application created successfully.");
   }
 
   async function handleStatusChange(id: string, status: ApplicationStatus) {
-    await updateApplication(id, { status });
+    const updated = await updateApplication(id, { status });
 
     if (editingApplication?.id === id) {
-      setEditingApplication((prev) => (prev ? { ...prev, status } : prev));
+      setEditingApplication(updated);
     }
 
     setSuccessMessage("Application status updated.");
@@ -76,7 +139,8 @@ export default function ApplicationsPage() {
 
   return (
     <main className="app-shell">
-        <AppNavbar />
+      <AppNavbar />
+
       <div className="app-container">
         <PageHeader
           title="Smart Job Tracker"

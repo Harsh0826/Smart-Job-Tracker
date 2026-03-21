@@ -2,16 +2,18 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApplicationById } from "../api/application";
 import StatusBadge from "../components/application/statusBadge";
+import ResumeUploadCard from "../components/resume/resumeUploadCard";
+import AppNavbar from "../components/ui/appNavbar";
 import EmptyState from "../components/ui/emptyState";
 import PageHeader from "../components/ui/header";
 import type { Application } from "../types/application";
 import { formatCurrency, formatDate } from "../utils/format";
-import { analyzeJobDescription, type SkillGapAnalysis } from "../api/ai";
-import AppNavbar from "../components/ui/appNavbar";
 
 function formatSalaryRange(min: number | null, max: number | null): string {
   if (min == null && max == null) return "-";
-  if (min != null && max != null) return `${formatCurrency(min)} - ${formatCurrency(max)}`;
+  if (min != null && max != null) {
+    return `${formatCurrency(min)} - ${formatCurrency(max)}`;
+  }
   if (min != null) return `From ${formatCurrency(min)}`;
   return `Up to ${formatCurrency(max)}`;
 }
@@ -38,57 +40,29 @@ export default function ApplicationDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [analysis, setAnalysis] = useState<SkillGapAnalysis | null>(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadApplication() {
-      if (!id) {
-        setError("Application id is missing.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getApplicationById(id);
-        setApplication(data);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load application details.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadApplication();
-  }, [id]);
-
-  async function handleAnalyze() {
-    if (!application?.job_description?.trim()) {
-      setAnalysisError("Job description is required for AI analysis.");
+  async function loadApplication() {
+    if (!id) {
+      setError("Application id is missing.");
+      setLoading(false);
       return;
     }
 
     try {
-      setAnalysisLoading(true);
-      setAnalysisError(null);
-
-      const result = await analyzeJobDescription({
-        jobDescription: application.job_description,
-        userSkills: [],
-      });
-
-      setAnalysis(result);
+      setLoading(true);
+      setError(null);
+      const data = await getApplicationById(id);
+      setApplication(data);
     } catch (err) {
       console.error(err);
-      setAnalysisError("Failed to analyze job description.");
+      setError("Failed to load application details.");
     } finally {
-      setAnalysisLoading(false);
+      setLoading(false);
     }
   }
+
+  useEffect(() => {
+    void loadApplication();
+  }, [id]);
 
   return (
     <main className="app-shell">
@@ -111,7 +85,6 @@ export default function ApplicationDetailsPage() {
         />
 
         {error && <div className="alert alert-error">{error}</div>}
-        {analysisError && <div className="alert alert-error">{analysisError}</div>}
 
         {loading ? (
           <section className="card">
@@ -146,14 +119,38 @@ export default function ApplicationDetailsPage() {
                   </div>
 
                   <div className="details-grid">
-                    <DetailCard label="Applied Date" value={formatDate(application.applied_date)} />
-                    <DetailCard label="Follow-up Date" value={formatDate(application.follow_up_date)} />
+                    <DetailCard
+                      label="Applied Date"
+                      value={formatDate(application.applied_date)}
+                    />
+                    <DetailCard
+                      label="Follow-up Date"
+                      value={formatDate(application.follow_up_date)}
+                    />
                     <DetailCard label="Source" value={application.source} />
-                    <DetailCard label="Salary Range" value={formatSalaryRange(application.salary_min, application.salary_max)} />
-                    <DetailCard label="Contact Name" value={application.contact_name} />
-                    <DetailCard label="Contact Email" value={application.contact_email} />
-                    <DetailCard label="Resume Version" value={application.resume_version} />
-                    <DetailCard label="Created At" value={formatDate(application.created_at)} />
+                    <DetailCard
+                      label="Salary Range"
+                      value={formatSalaryRange(
+                        application.salary_min,
+                        application.salary_max
+                      )}
+                    />
+                    <DetailCard
+                      label="Contact Name"
+                      value={application.contact_name}
+                    />
+                    <DetailCard
+                      label="Contact Email"
+                      value={application.contact_email}
+                    />
+                    <DetailCard
+                      label="Resume Version"
+                      value={application.resume_version}
+                    />
+                    <DetailCard
+                      label="Created At"
+                      value={formatDate(application.created_at)}
+                    />
                   </div>
 
                   <div className="details-section">
@@ -175,7 +172,8 @@ export default function ApplicationDetailsPage() {
                   <div className="details-section">
                     <h3 className="details-section-title">Job Description</h3>
                     <p className="details-text">
-                      {application.job_description || "No job description available."}
+                      {application.job_description ||
+                        "No job description available."}
                     </p>
                   </div>
 
@@ -185,20 +183,16 @@ export default function ApplicationDetailsPage() {
                       {application.notes || "No notes added yet."}
                     </p>
                   </div>
-
-                  {/* <div className="details-actions">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={handleAnalyze}
-                      disabled={analysisLoading}
-                    >
-                      {analysisLoading ? "Analyzing..." : "Analyze Job Description"}
-                    </button>
-                  </div> */}
                 </div>
               </div>
             </section>
+
+            <ResumeUploadCard
+              application={application}
+              onUploadComplete={(updatedApplication) => {
+                setApplication(updatedApplication);
+              }}
+            />
           </div>
         )}
       </div>

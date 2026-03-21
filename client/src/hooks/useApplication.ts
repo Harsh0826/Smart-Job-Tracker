@@ -16,11 +16,11 @@ interface UseApplicationsReturn {
   loading: boolean;
   error: string | null;
   fetchApplications: () => Promise<void>;
-  createApplication: (payload: CreateApplicationPayload) => Promise<void>;
+  createApplication: (payload: CreateApplicationPayload) => Promise<Application>;
   updateApplication: (
     id: string,
     payload: UpdateApplicationPayload
-  ) => Promise<void>;
+  ) => Promise<Application>;
   deleteApplication: (id: string) => Promise<void>;
 }
 
@@ -49,6 +49,7 @@ export function useApplications(): UseApplicationsReturn {
         setError(null);
         const created = await createApplicationApi(payload);
         setApplications((prev) => [created, ...prev]);
+        return created;
       } catch (err) {
         console.error(err);
         setError("Failed to create application.");
@@ -66,6 +67,7 @@ export function useApplications(): UseApplicationsReturn {
         setApplications((prev) =>
           prev.map((item) => (item.id === id ? updated : item))
         );
+        return updated;
       } catch (err) {
         console.error(err);
         setError("Failed to update application.");
