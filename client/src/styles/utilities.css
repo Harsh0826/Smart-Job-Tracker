@@ -1,0 +1,32 @@
+.muted {
+  color: var(--text-soft);
+}
+
+.page-actions {
+  margin-bottom: 16px;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-soft);
+}
+
+.empty-state-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.empty-state-description {
+  margin: 8px 0 0;
+  color: var(--text-soft);
+}
+
+.field-error {
+  margin: -2px 0 0;
+  font-size: 0.84rem;
+  color: var(--danger);
+  font-weight: 600;
+}
