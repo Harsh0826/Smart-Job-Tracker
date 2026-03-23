@@ -1,0 +1,51 @@
+.analysis-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.analysis-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analysis-section {
+  display: grid;
+  gap: 10px;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.skill-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.skill-chip-missing {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.suggestion-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .analysis-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -32,7 +32,8 @@ export interface Application {
   resume_file_name: string | null;
   resume_file_key: string | null;
   resume_uploaded_at: string | null;
-
+match_score: number | null;
+analysis_last_run_at: string | null;
   required_skills: string[] | null;
   missing_skills: string[] | null;
   suggestions: string[] | null;

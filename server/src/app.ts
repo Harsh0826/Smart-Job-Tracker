@@ -4,6 +4,7 @@ import applicationRoutes from "./routes/appplicationRoute";
 import analyticsRoutes from "./routes/analyticsRoute";
 import resumeRoutes from "./routes/resumeRoute";
 import { errorHandler } from "./middleware/erroHandler";
+import aiAnalysisRoutes from "./routes/aiAnalysisRoute";
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/applications", applicationRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/resumes", resumeRoutes);
+app.use("/api/ai", aiAnalysisRoutes);
 
 app.use(errorHandler);
 

@@ -1,22 +1,25 @@
 import { apiClient } from "./client";
+import type { Application } from "../types/application";
 
-export interface AnalyzeJobDescriptionPayload {
-  jobDescription: string;
-  userSkills?: string[];
-}
-
-export interface SkillGapAnalysis {
+export interface ResumeJobMatchAnalysis {
+  matchScore: number;
   requiredSkills: string[];
   missingSkills: string[];
   suggestions: string[];
 }
 
-export async function analyzeJobDescription(
-  payload: AnalyzeJobDescriptionPayload
-): Promise<SkillGapAnalysis> {
-  const response = await apiClient.post<SkillGapAnalysis>(
-    "/ai/analyze",
-    payload
+export interface AnalyzeResumeJobMatchResponse {
+  application: Application;
+  analysis: ResumeJobMatchAnalysis;
+  resumeTextPreview: string;
+}
+
+export async function analyzeResumeJobMatch(
+  applicationId: string
+): Promise<AnalyzeResumeJobMatchResponse> {
+  const response = await apiClient.post<AnalyzeResumeJobMatchResponse>(
+    "/ai/analyze-resume",
+    { applicationId }
   );
 
   return response.data;

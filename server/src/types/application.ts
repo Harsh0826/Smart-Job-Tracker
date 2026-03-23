@@ -27,9 +27,17 @@ export interface Application {
 
   resume_version: string | null;
 
+  // ⭐ ADD THESE (VERY IMPORTANT)
+  resume_file_name: string | null;
+  resume_file_key: string | null;
+  resume_uploaded_at: string | null;
+
   required_skills: string[] | null;
   missing_skills: string[] | null;
   suggestions: string[] | null;
+
+  match_score: number | null;
+  analysis_last_run_at: string | null;
 
   notes: string | null;
 
@@ -55,9 +63,9 @@ export interface CreateApplicationInput {
   contact_email?: string | null;
 
   resume_version?: string | null;
-  resume_file_name: string | null;
-  resume_file_key: string | null;
-  resume_uploaded_at: string | null;
+  resume_file_name?: string | null;
+  resume_file_key?: string | null;
+  resume_uploaded_at?: string | null;
 
   required_skills?: string[] | null;
   missing_skills?: string[] | null;
@@ -87,6 +95,7 @@ export interface UpdateApplicationInput {
 resume_file_name?: string | null;
 resume_file_key?: string | null;
 resume_uploaded_at?: string | null;
+
   required_skills?: string[] | null;
   missing_skills?: string[] | null;
   suggestions?: string[] | null;

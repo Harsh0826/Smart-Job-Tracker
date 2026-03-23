@@ -8,6 +8,7 @@ import EmptyState from "../components/ui/emptyState";
 import PageHeader from "../components/ui/header";
 import type { Application } from "../types/application";
 import { formatCurrency, formatDate } from "../utils/format";
+import ResumeAnalysisCard from "../components/ai/resumeAnalysisCard";
 
 function formatSalaryRange(min: number | null, max: number | null): string {
   if (min == null && max == null) return "-";
@@ -193,6 +194,20 @@ export default function ApplicationDetailsPage() {
                 setApplication(updatedApplication);
               }}
             />
+            <ResumeAnalysisCard
+  application={application}
+  onAnalysisComplete={(updatedApplication) => {
+    setApplication(updatedApplication);
+  }}
+/>
+            {application.resume_file_key ? (
+  <div className="details-section">
+    <h3 className="details-section-title">Resume</h3>
+    <p className="details-text">
+      A resume is attached to this application. You can open it from the upload section below.
+    </p>
+  </div>
+) : null}
           </div>
         )}
       </div>
