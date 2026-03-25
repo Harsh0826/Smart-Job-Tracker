@@ -1,10 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import {
   completeResumeUpload,
+  getResumeDownloadUrl,
   createResumeUploadUrl,
+    extractResumeText,
 } from "../services/resume.service";
 
-export async function presignResumeUploadHandler(
+export async function resumeUploadHandler(
   req: Request,
   res: Response,
   next: NextFunction
@@ -54,6 +56,50 @@ export async function completeResumeUploadHandler(
       message: "Resume uploaded successfully",
       application: updatedApplication,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resumeDownloadHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { applicationId } = req.body;
+
+    if (!applicationId) {
+      return res.status(400).json({
+        message: "applicationId is required",
+      });
+    }
+
+    const result = await getResumeDownloadUrl({ applicationId });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function extractResumeTextHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { applicationId } = req.body;
+
+    if (!applicationId) {
+      return res.status(400).json({
+        message: "applicationId is required",
+      });
+    }
+
+    const result = await extractResumeText({ applicationId });
+
+    return res.status(200).json(result);
   } catch (error) {
     next(error);
   }
