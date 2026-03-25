@@ -1,13 +1,13 @@
 import { apiClient } from "./client";
 import type { Application } from "../types/application";
 
-export interface PresignResumeUploadRequest {
+export interface resumeUploadRequest {
   applicationId: string;
   fileName: string;
   contentType: string;
 }
 
-export interface PresignResumeUploadResponse {
+export interface resumeUploadResponse {
   uploadUrl: string;
   fileKey: string;
   expiresIn: number;
@@ -24,11 +24,31 @@ export interface CompleteResumeUploadResponse {
   application: Application;
 }
 
-export async function presignResumeUpload(
-  payload: PresignResumeUploadRequest
-): Promise<PresignResumeUploadResponse> {
-  const response = await apiClient.post<PresignResumeUploadResponse>(
-    "/resumes/presign-upload",
+export interface PresignResumeDownloadRequest {
+  applicationId: string;
+}
+
+export interface resumeDownloadResponse {
+  downloadUrl: string;
+  expiresIn: number;
+  fileName: string | null;
+}
+
+export async function resumeDownload(
+  payload: PresignResumeDownloadRequest
+): Promise<resumeDownloadResponse> {
+  const response = await apiClient.post<resumeDownloadResponse>(
+    "/resumes/download",
+    payload
+  );
+  return response.data;
+}
+
+    export async function resumeUpload(
+    payload: resumeUploadRequest
+    ): Promise<resumeUploadResponse> {
+  const response = await apiClient.post<resumeUploadResponse>(
+    "/resumes/upload",
     payload
   );
   return response.data;
