@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import {
   completeResumeUpload,
-  presignResumeUpload,
+  resumeUpload,
+  resumeDownload
 } from "../../api/resume";
 import type { Application } from "../../types/application";
 import { formatDate } from "../../utils/format";
@@ -19,6 +20,7 @@ export default function ResumeUploadCard({
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [openingResume, setOpeningResume] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -70,7 +72,7 @@ export default function ResumeUploadCard({
       setUploading(true);
       resetMessages();
 
-      const presigned = await presignResumeUpload({
+      const presigned = await resumeUpload({
         applicationId: application.id,
         fileName: selectedFile.name,
         contentType: selectedFile.type,
@@ -108,6 +110,23 @@ export default function ResumeUploadCard({
       setUploading(false);
     }
   }
+ async function handleViewResume() {
+    try {
+      setOpeningResume(true);
+      resetMessages();
+
+      const response = await resumeDownload({
+        applicationId: application.id,
+      });
+
+      window.open(response.downloadUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Unable to open resume. Please try again.");
+    } finally {
+      setOpeningResume(false);
+    }
+  }
 
   return (
     <section className="card">
@@ -125,39 +144,75 @@ export default function ResumeUploadCard({
           <div className="alert alert-error">{errorMessage}</div>
         ) : null}
 
-        <div className="resume-upload-stack">
-          <div className="resume-upload-meta">
-            <p className="resume-upload-label">Current Resume</p>
-            <p className="resume-upload-value">{existingResumeText}</p>
-          </div>
+       <div className="resume-upload-stack">
+  <div className="resume-meta-card">
+    <div className="resume-meta-top">
+      <div>
+        <p className="resume-upload-label">Current Resume</p>
+        <p className="resume-upload-value">{existingResumeText}</p>
+      </div>
 
-          <div className="resume-upload-controls">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileChange}
-              className="input"
-            />
+      {application.resume_file_key ? (
+        <span className="resume-badge">Uploaded</span>
+      ) : (
+        <span className="resume-badge resume-badge--empty">
+          Not Uploaded
+        </span>
+      )}
+    </div>
+  </div>
 
-            {selectedFile ? (
-              <p className="resume-selected-file">
-                Selected: {selectedFile.name}
-              </p>
-            ) : null}
+  <div className="resume-upload-panel">
+    <label className="file-upload-box">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileChange}
+        className="file-upload-input"
+      />
 
-            <div className="form-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleUpload}
-                disabled={uploading || !selectedFile}
-              >
-                {uploading ? "Uploading..." : "Replace / Upload Resume"}
-              </button>
-            </div>
-          </div>
+      <div className="file-upload-content">
+        <div className="file-upload-icon">📄</div>
+        <div>
+          <p className="file-upload-title">Choose your resume PDF</p>
+          <p className="file-upload-subtitle">
+            Upload a clean, up-to-date resume
+          </p>
         </div>
+      </div>
+    </label>
+
+    {selectedFile && (
+      <div className="resume-file-selected">
+        <span className="resume-file-label">Selected file</span>
+        <span className="resume-file-name">{selectedFile.name}</span>
+      </div>
+    )}
+
+    <div className="resume-actions">
+      {application.resume_file_key && (
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={handleViewResume}
+          disabled={openingResume}
+        >
+          {openingResume ? "Opening..." : "View Resume"}
+        </button>
+      )}
+
+      <button
+        type="button"
+        className="btn btn-primary"
+        onClick={handleUpload}
+        disabled={uploading || !selectedFile}
+      >
+        {uploading ? "Uploading Resume..." : "Upload Resume"}
+      </button>
+    </div>
+  </div>
+</div>
       </div>
     </section>
   );

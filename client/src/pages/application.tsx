@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   completeResumeUpload,
-  presignResumeUpload,
+  resumeUpload,
 } from "../api/resume";
 import ApplicationForm from "../components/application/applicationForm";
 import ApplicationTable from "../components/application/applicationTable";
@@ -46,7 +46,7 @@ export default function ApplicationsPage() {
     applicationId: string,
     resumeFile: File
   ) {
-    const presigned = await presignResumeUpload({
+    const presigned = await resumeUpload({
       applicationId,
       fileName: resumeFile.name,
       contentType: resumeFile.type,
