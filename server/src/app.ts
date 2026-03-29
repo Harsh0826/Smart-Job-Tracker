@@ -8,7 +8,23 @@ import aiAnalysisRoutes from "./routes/aiAnalysisRoute";
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://smart-job-tracker-git-main-harsh0826s-projects.vercel.app/",
+];
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
@@ -19,7 +35,6 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/resumes", resumeRoutes);
 app.use("/api/ai", aiAnalysisRoutes);
-
 app.use(errorHandler);
 
 export default app;
