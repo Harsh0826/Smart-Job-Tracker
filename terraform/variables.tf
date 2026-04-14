@@ -24,5 +24,5 @@ variable "resume_bucket_name" {
 variable "frontend_allowed_origins" {
   description = "Allowed frontend origins for browser uploads to S3"
   type        = list(string)
-  default     = ["http://localhost:5173"]
+  default     = ["http://localhost:5173", "https://smart-job-tracker.vercel.app", "https://smart-job-tracker-git-main-harsh0826s-projects.vercel.app"]
 }
