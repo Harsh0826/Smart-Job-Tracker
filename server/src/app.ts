@@ -11,6 +11,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://smart-job-tracker-git-main-harsh0826s-projects.vercel.app",
+  "https://smart-job-tracker-dusky.vercel.app"
 ];
 
 app.use(
