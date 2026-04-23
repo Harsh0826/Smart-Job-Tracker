@@ -1,48 +1,46 @@
 export type ApplicationStatus =
+  | "SAVED"         
   | "APPLIED"
-  | "SCREENING"
+  | "PHONE_SCREEN" 
   | "INTERVIEW"
   | "OFFER"
+  | "ACCEPTED" 
   | "REJECTED"
-  | "GHOSTED"
-  | "WITHDRAWN";
+  | "WITHDRAWN"
+  | "GHOSTED";
 
 export interface Application {
   id: string;
+  user_id: string;
+
+  // Job details
   company: string;
   role: string;
   job_description: string;
   job_url: string | null;
+  source: string | null;
 
+  // Pipeline
   status: ApplicationStatus;
   applied_date: string | null;
   follow_up_date: string | null;
 
+  // Compensation
   salary_min: number | null;
   salary_max: number | null;
+  currency: string;             // ISO 4217 e.g. "CAD"
 
-  source: string | null;
+  // Contact
   contact_name: string | null;
   contact_email: string | null;
-
-  resume_version: string | null;
-
-  // ⭐ ADD THESE (VERY IMPORTANT)
-  resume_file_name: string | null;
-  resume_file_key: string | null;
-  resume_uploaded_at: string | null;
-
-  required_skills: string[] | null;
-  missing_skills: string[] | null;
-  suggestions: string[] | null;
-
-  match_score: number | null;
-  analysis_last_run_at: string | null;
+  contact_linkedin: string | null;
 
   notes: string | null;
 
+  // Audit
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface CreateApplicationInput {
@@ -50,6 +48,7 @@ export interface CreateApplicationInput {
   role: string;
   job_description: string;
   job_url?: string | null;
+  source?: string | null;
 
   status?: ApplicationStatus;
   applied_date?: string | null;
@@ -57,48 +56,87 @@ export interface CreateApplicationInput {
 
   salary_min?: number | null;
   salary_max?: number | null;
+  currency?: string;
 
-  source?: string | null;
   contact_name?: string | null;
   contact_email?: string | null;
-
-  resume_version?: string | null;
-  resume_file_name?: string | null;
-  resume_file_key?: string | null;
-  resume_uploaded_at?: string | null;
-
-  required_skills?: string[] | null;
-  missing_skills?: string[] | null;
-  suggestions?: string[] | null;
+  contact_linkedin?: string | null;
 
   notes?: string | null;
 }
 
-export interface UpdateApplicationInput {
-  company?: string;
-  role?: string;
-  job_description?: string;
-  job_url?: string | null;
+export interface UpdateApplicationInput extends Partial<CreateApplicationInput> {}
 
-  status?: ApplicationStatus;
-  applied_date?: string | null;
-  follow_up_date?: string | null;
 
-  salary_min?: number | null;
-  salary_max?: number | null;
+export interface Resume {
+  id: string;
+  application_id: string;
+  user_id: string;
 
-  source?: string | null;
-  contact_name?: string | null;
-  contact_email?: string | null;
+  version_label: string;        // e.g. "v1", "tailored-jan"
+  is_primary: boolean;
 
-  resume_version?: string | null;
-resume_file_name?: string | null;
-resume_file_key?: string | null;
-resume_uploaded_at?: string | null;
+  // File storage
+  file_name: string;
+  file_key: string | null;      // S3 object key
+  file_url: string | null;      // pre-signed or public URL
+  file_size_bytes: number | null;
+  mime_type: string;
+  storage_source: "UPLOAD" | "S3" | "GDRIVE" | "URL";
 
-  required_skills?: string[] | null;
-  missing_skills?: string[] | null;
-  suggestions?: string[] | null;
+  // Parsed text (populated by background job)
+  parsed_text: string | null;
+  parsed_at: string | null;
 
-  notes?: string | null;
+  uploaded_at: string;
+  created_at: string;
+  updated_at: string;
+}
+export interface AIFeedback {
+  id: string;
+  application_id: string;
+  resume_id: string | null;     // null if JD-only analysis
+
+  match_score: number | null;   // 0–100
+
+  // Structured AI output
+  required_skills: string[] | null;
+  missing_skills: string[]  | null;
+  matched_skills: string[]  | null;
+  suggestions: string[]     | null;
+  keyword_gaps: string[]    | null;
+  summary: string | null;
+
+  // Model metadata
+  model_name: string | null;
+  prompt_version: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  latency_ms: number | null;
+
+  triggered_by: "user" | "auto" | "webhook" | null;
+  run_at: string;
+}
+
+// Mirrors the v_applications_latest_feedback DB view
+// Use this for dashboard lists and detail pages
+export interface ApplicationWithDetails extends Application {
+  // Latest AI feedback (null if never analyzed)
+  latest_feedback: AIFeedback | null;
+
+  // Primary resume (null if none uploaded)
+  primary_resume: Resume | null;
+}
+
+export interface CreateResumeInput {
+  application_id: string;
+  version_label?: string;       // defaults to "v1"
+  is_primary?: boolean;         // defaults to true
+
+  file_name: string;
+  file_key?: string | null;
+  file_url?: string | null;
+  file_size_bytes?: number | null;
+  mime_type?: string;
+  storage_source?: "UPLOAD" | "S3" | "GDRIVE" | "URL";
 }
