@@ -30,6 +30,7 @@ export async function updateApplication(
     `/applications/${id}`,
     payload
   );
+
   return response.data;
 }
 
@@ -39,5 +40,6 @@ export async function deleteApplication(
   const response = await apiClient.delete<{ message: string }>(
     `/applications/${id}`
   );
+
   return response.data;
 }

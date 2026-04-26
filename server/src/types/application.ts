@@ -1,10 +1,11 @@
 export type ApplicationStatus =
-  | "SAVED"         
+  | "SAVED"
   | "APPLIED"
-  | "PHONE_SCREEN" 
+  | "PHONE_SCREEN"
   | "INTERVIEW"
+  | "TECHNICAL"
   | "OFFER"
-  | "ACCEPTED" 
+  | "ACCEPTED"
   | "REJECTED"
   | "WITHDRAWN"
   | "GHOSTED";
@@ -12,38 +13,35 @@ export type ApplicationStatus =
 export interface Application {
   id: string;
   user_id: string;
+  resume_id: number | null;
 
-  // Job details
   company: string;
   role: string;
   job_description: string;
   job_url: string | null;
   source: string | null;
 
-  // Pipeline
   status: ApplicationStatus;
   applied_date: string | null;
   follow_up_date: string | null;
 
-  // Compensation
   salary_min: number | null;
   salary_max: number | null;
-  currency: string;             // ISO 4217 e.g. "CAD"
 
-  // Contact
   contact_name: string | null;
   contact_email: string | null;
-  contact_linkedin: string | null;
 
   notes: string | null;
 
-  // Audit
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
-  deleted_at: string | null;
 }
 
 export interface CreateApplicationInput {
+  user_id: string;
+  resume_id?: number | null;
+
   company: string;
   role: string;
   job_description: string;
@@ -56,16 +54,34 @@ export interface CreateApplicationInput {
 
   salary_min?: number | null;
   salary_max?: number | null;
-  currency?: string;
 
   contact_name?: string | null;
   contact_email?: string | null;
-  contact_linkedin?: string | null;
 
   notes?: string | null;
 }
 
-export interface UpdateApplicationInput extends Partial<CreateApplicationInput> {}
+export interface UpdateApplicationInput {
+  resume_id?: number | null;
+
+  company?: string;
+  role?: string;
+  job_description?: string;
+  job_url?: string | null;
+  source?: string | null;
+
+  status?: ApplicationStatus;
+  applied_date?: string | null;
+  follow_up_date?: string | null;
+
+  salary_min?: number | null;
+  salary_max?: number | null;
+
+  contact_name?: string | null;
+  contact_email?: string | null;
+
+  notes?: string | null;
+}
 
 
 export interface Resume {

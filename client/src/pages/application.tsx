@@ -1,9 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  completeResumeUpload,
-  resumeUpload,
-} from "../api/resume";
 import ApplicationForm from "../components/application/applicationForm";
 import ApplicationTable from "../components/application/applicationTable";
 import AppNavbar from "../components/ui/appNavbar";
@@ -15,11 +10,7 @@ import type {
   CreateApplicationPayload,
 } from "../types/application";
 
-
-
 export default function ApplicationsPage() {
-  const navigate = useNavigate();
-
   const {
     applications,
     loading,
@@ -29,7 +20,9 @@ export default function ApplicationsPage() {
     deleteApplication,
   } = useApplications();
 
-  const [editingApplication, setEditingApplication] = useState<Application | null>(null);
+  const [editingApplication, setEditingApplication] =
+    useState<Application | null>(null);
+
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,69 +35,19 @@ export default function ApplicationsPage() {
     return () => window.clearTimeout(timeout);
   }, [successMessage]);
 
-  async function uploadResumeForApplication(
-    applicationId: string,
-    resumeFile: File
-  ) {
-    const presigned = await resumeUpload({
-      applicationId,
-      fileName: resumeFile.name,
-      contentType: resumeFile.type,
-    });
-
-    const uploadResponse = await fetch(presigned.uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": resumeFile.type,
-      },
-      body: resumeFile,
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error("Failed to upload resume.");
-    }
-
-    const completed = await completeResumeUpload({
-      applicationId,
-      fileName: resumeFile.name,
-      fileKey: presigned.fileKey,
-    });
-
-    return completed.application;
-  }
-
-  async function handleFormSubmit(
-    payload: CreateApplicationPayload,
-    resumeFile?: File | null
-  ) {
+  async function handleFormSubmit(payload: CreateApplicationPayload) {
     if (editingApplication) {
-      let updatedApplication = await updateApplication(editingApplication.id, payload);
-
-      if (resumeFile) {
-        updatedApplication = await uploadResumeForApplication(
-          editingApplication.id,
-          resumeFile
-        );
-      }
+      const updatedApplication = await updateApplication(
+        editingApplication.id,
+        payload
+      );
 
       setEditingApplication(updatedApplication);
-      setSuccessMessage(
-        resumeFile
-          ? "Application and resume updated successfully."
-          : "Application updated successfully."
-      );
+      setSuccessMessage("Application updated successfully.");
       return;
     }
 
-    const createdApplication = await createApplication(payload);
-
-    if (resumeFile) {
-      await uploadResumeForApplication(createdApplication.id, resumeFile);
-      setSuccessMessage("Application and resume created successfully.");
-      navigate(`/applications/${createdApplication.id}`);
-      return;
-    }
-
+    await createApplication(payload);
     setSuccessMessage("Application created successfully.");
   }
 
@@ -147,7 +90,10 @@ export default function ApplicationsPage() {
           subtitle="Track applications, manage follow-ups, and keep your job search organized."
         />
 
-        {successMessage && <div className="alert alert-success">{successMessage}</div>}
+        {successMessage && (
+          <div className="alert alert-success">{successMessage}</div>
+        )}
+
         {error && <div className="alert alert-error">{error}</div>}
 
         <section className="page-grid">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   APPLICATION_STATUSES,
   type Application,
@@ -9,19 +9,15 @@ import SelectField from "../ui/SelectField";
 import TextareaField from "../ui/TextAreaField";
 
 type Props = {
-  onSubmit: (
-    payload: CreateApplicationPayload,
-    resumeFile?: File | null
-  ) => Promise<void>;
+  onSubmit: (payload: CreateApplicationPayload) => Promise<void>;
   editingApplication?: Application | null;
   onCancelEdit?: () => void;
 };
 
-type FormErrors = Partial<Record<keyof CreateApplicationPayload, string>> & {
-  resumeFile?: string;
-};
+type FormErrors = Partial<Record<keyof CreateApplicationPayload, string>>;
 
 const initialForm: CreateApplicationPayload = {
+  resume_id: null,
   company: "",
   role: "",
   job_description: "",
@@ -34,7 +30,6 @@ const initialForm: CreateApplicationPayload = {
   source: "",
   contact_name: "",
   contact_email: "",
-  resume_version: "",
   notes: "",
 };
 
@@ -43,8 +38,11 @@ const statusOptions = APPLICATION_STATUSES.map((status) => ({
   value: status,
 }));
 
-function mapApplicationToForm(application: Application): CreateApplicationPayload {
+function mapApplicationToForm(
+  application: Application
+): CreateApplicationPayload {
   return {
+    resume_id: application.resume_id ?? null,
     company: application.company,
     role: application.role,
     job_description: application.job_description,
@@ -57,15 +55,11 @@ function mapApplicationToForm(application: Application): CreateApplicationPayloa
     source: application.source ?? "",
     contact_name: application.contact_name ?? "",
     contact_email: application.contact_email ?? "",
-    resume_version: application.resume_version ?? "",
     notes: application.notes ?? "",
   };
 }
 
-function validateForm(
-  form: CreateApplicationPayload,
-  resumeFile: File | null
-): FormErrors {
+function validateForm(form: CreateApplicationPayload): FormErrors {
   const errors: FormErrors = {};
 
   if (!form.company?.trim()) {
@@ -89,11 +83,8 @@ function validateForm(
     form.salary_max != null &&
     form.salary_min > form.salary_max
   ) {
-    errors.salary_max = "Salary max should be greater than or equal to salary min.";
-  }
-
-  if (resumeFile && resumeFile.type !== "application/pdf") {
-    errors.resumeFile = "Only PDF files are allowed.";
+    errors.salary_max =
+      "Salary max should be greater than or equal to salary min.";
   }
 
   return errors;
@@ -104,36 +95,30 @@ export default function ApplicationForm({
   editingApplication = null,
   onCancelEdit,
 }: Props) {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const [form, setForm] = useState<CreateApplicationPayload>(initialForm);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const isEditing = useMemo(() => Boolean(editingApplication), [editingApplication]);
+  const isEditing = useMemo(
+    () => Boolean(editingApplication),
+    [editingApplication]
+  );
 
   useEffect(() => {
     if (editingApplication) {
       setForm(mapApplicationToForm(editingApplication));
-      setResumeFile(null);
       setErrors({});
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
       return;
     }
 
     setForm(initialForm);
-    setResumeFile(null);
     setErrors({});
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   }, [editingApplication]);
 
   function handleInputChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) {
     const { name, value } = e.target;
 
@@ -147,6 +132,21 @@ export default function ApplicationForm({
         ...prev,
         [name]: undefined,
       }));
+
+      return;
+    }
+
+    if (name === "resume_id") {
+      setForm((prev) => ({
+        ...prev,
+        resume_id: value === "" ? null : Number(value),
+      }));
+
+      setErrors((prev) => ({
+        ...prev,
+        resume_id: undefined,
+      }));
+
       return;
     }
 
@@ -161,35 +161,10 @@ export default function ApplicationForm({
     }));
   }
 
-  function handleResumeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-
-    setErrors((prev) => ({
-      ...prev,
-      resumeFile: undefined,
-    }));
-
-    if (!file) {
-      setResumeFile(null);
-      return;
-    }
-
-    if (file.type !== "application/pdf") {
-      setResumeFile(null);
-      setErrors((prev) => ({
-        ...prev,
-        resumeFile: "Only PDF files are allowed.",
-      }));
-      return;
-    }
-
-    setResumeFile(file);
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const validationErrors = validateForm(form, resumeFile);
+    const validationErrors = validateForm(form);
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -199,34 +174,26 @@ export default function ApplicationForm({
     try {
       setSubmitting(true);
 
-      await onSubmit(
-        {
-          ...form,
-          company: form.company.trim(),
-          role: form.role.trim(),
-          job_description: form.job_description.trim(),
-          job_url: form.job_url || null,
-          applied_date: form.applied_date || null,
-          follow_up_date: form.follow_up_date || null,
-          source: form.source || null,
-          contact_name: form.contact_name || null,
-          contact_email: form.contact_email || null,
-          resume_version: form.resume_version || null,
-          notes: form.notes || null,
-        },
-        resumeFile
-      );
+      await onSubmit({
+        ...form,
+        resume_id: form.resume_id ?? null,
+        company: form.company.trim(),
+        role: form.role.trim(),
+        job_description: form.job_description.trim(),
+        job_url: form.job_url?.trim() || null,
+        applied_date: form.applied_date || null,
+        follow_up_date: form.follow_up_date || null,
+        source: form.source?.trim() || null,
+        contact_name: form.contact_name?.trim() || null,
+        contact_email: form.contact_email?.trim() || null,
+        notes: form.notes?.trim() || null,
+      });
 
       if (!isEditing) {
         setForm(initialForm);
       }
 
-      setResumeFile(null);
       setErrors({});
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     } finally {
       setSubmitting(false);
     }
@@ -238,10 +205,11 @@ export default function ApplicationForm({
         <h2 className="card-title">
           {isEditing ? "Edit Application" : "Add Application"}
         </h2>
+
         <p className="card-subtitle">
           {isEditing
-            ? "Update the selected application details and optionally replace the resume."
-            : "Save a new role, track progress, and optionally upload the resume used for this application."}
+            ? "Update the selected application details."
+            : "Save a new role and track its progress."}
         </p>
 
         <form onSubmit={handleSubmit} className="form">
@@ -369,9 +337,9 @@ export default function ApplicationForm({
           </div>
 
           <div className="form-section">
-            <h3 className="form-section-title">Contact & Resume</h3>
+            <h3 className="form-section-title">Contact</h3>
             <p className="form-section-description">
-              Store recruiter info, resume version, and optionally upload/replace the resume PDF.
+              Store recruiter or hiring manager information.
             </p>
 
             <div className="form-grid">
@@ -396,41 +364,16 @@ export default function ApplicationForm({
               />
 
               <InputField
-                id="resume_version"
-                name="resume_version"
-                label="Resume Version"
-                placeholder="resume_v3_backend.pdf"
-                value={form.resume_version ?? ""}
+                id="resume_id"
+                name="resume_id"
+                label="Resume ID"
+                type="number"
+                placeholder="Optional resume id"
+                value={form.resume_id ?? ""}
                 onChange={handleInputChange}
                 full
-                error={errors.resume_version}
+                error={errors.resume_id}
               />
-
-              <div className="field field--full">
-                <label className="label" htmlFor="resume_pdf">
-                  {isEditing ? "Replace Resume PDF" : "Resume PDF"}
-                </label>
-                <input
-                  ref={fileInputRef}
-                  id="resume_pdf"
-                  type="file"
-                  accept="application/pdf"
-                  className="input"
-                  onChange={handleResumeChange}
-                />
-                {errors.resumeFile ? (
-                  <p className="field-error">{errors.resumeFile}</p>
-                ) : null}
-                {resumeFile ? (
-                  <p className="resume-selected-file">
-                    Selected: {resumeFile.name}
-                  </p>
-                ) : editingApplication?.resume_file_name ? (
-                  <p className="resume-selected-file">
-                    Current: {editingApplication.resume_file_name}
-                  </p>
-                ) : null}
-              </div>
             </div>
           </div>
 
@@ -466,14 +409,18 @@ export default function ApplicationForm({
               </button>
             ) : null}
 
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={submitting}
+            >
               {submitting
                 ? isEditing
                   ? "Updating..."
                   : "Saving..."
                 : isEditing
-                ? "Update Application"
-                : "Save Application"}
+                  ? "Update Application"
+                  : "Save Application"}
             </button>
           </div>
         </form>

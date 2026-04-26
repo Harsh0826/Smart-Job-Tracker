@@ -6,8 +6,11 @@ import {
   getApplicationByIdHandler,
   updateApplicationHandler,
 } from "../controllers/application.controller";
+import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
+
+router.use(authMiddleware);
 
 router.post("/", createApplicationHandler);
 router.get("/", getAllApplicationsHandler);

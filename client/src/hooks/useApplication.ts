@@ -26,13 +26,14 @@ interface UseApplicationsReturn {
 
 export function useApplications(): UseApplicationsReturn {
   const [applications, setApplications] = useState<Application[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
       const data = await getApplications();
       setApplications(data);
     } catch (err) {
@@ -47,8 +48,10 @@ export function useApplications(): UseApplicationsReturn {
     async (payload: CreateApplicationPayload) => {
       try {
         setError(null);
+
         const created = await createApplicationApi(payload);
         setApplications((prev) => [created, ...prev]);
+
         return created;
       } catch (err) {
         console.error(err);
@@ -63,10 +66,13 @@ export function useApplications(): UseApplicationsReturn {
     async (id: string, payload: UpdateApplicationPayload) => {
       try {
         setError(null);
+
         const updated = await updateApplicationApi(id, payload);
+
         setApplications((prev) =>
           prev.map((item) => (item.id === id ? updated : item))
         );
+
         return updated;
       } catch (err) {
         console.error(err);
@@ -80,7 +86,9 @@ export function useApplications(): UseApplicationsReturn {
   const deleteApplication = useCallback(async (id: string) => {
     try {
       setError(null);
+
       await deleteApplicationApi(id);
+
       setApplications((prev) => prev.filter((item) => item.id !== id));
     } catch (err) {
       console.error(err);

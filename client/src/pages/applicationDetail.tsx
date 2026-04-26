@@ -2,20 +2,21 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApplicationById } from "../api/application";
 import StatusBadge from "../components/application/statusBadge";
-import ResumeUploadCard from "../components/resume/resumeUploadCard";
 import AppNavbar from "../components/ui/appNavbar";
 import EmptyState from "../components/ui/emptyState";
 import PageHeader from "../components/ui/header";
 import type { Application } from "../types/application";
 import { formatCurrency, formatDate } from "../utils/format";
-import ResumeAnalysisCard from "../components/ai/resumeAnalysisCard";
 
 function formatSalaryRange(min: number | null, max: number | null): string {
   if (min == null && max == null) return "-";
+
   if (min != null && max != null) {
     return `${formatCurrency(min)} - ${formatCurrency(max)}`;
   }
+
   if (min != null) return `From ${formatCurrency(min)}`;
+
   return `Up to ${formatCurrency(max)}`;
 }
 
@@ -34,7 +35,7 @@ function DetailCard({ label, value }: DetailCardProps) {
 }
 
 export default function ApplicationDetailsPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [application, setApplication] = useState<Application | null>(null);
@@ -51,6 +52,7 @@ export default function ApplicationDetailsPage() {
     try {
       setLoading(true);
       setError(null);
+
       const data = await getApplicationById(id);
       setApplication(data);
     } catch (err) {
@@ -124,11 +126,14 @@ export default function ApplicationDetailsPage() {
                       label="Applied Date"
                       value={formatDate(application.applied_date)}
                     />
+
                     <DetailCard
                       label="Follow-up Date"
                       value={formatDate(application.follow_up_date)}
                     />
+
                     <DetailCard label="Source" value={application.source} />
+
                     <DetailCard
                       label="Salary Range"
                       value={formatSalaryRange(
@@ -136,18 +141,26 @@ export default function ApplicationDetailsPage() {
                         application.salary_max
                       )}
                     />
+
                     <DetailCard
                       label="Contact Name"
                       value={application.contact_name}
                     />
+
                     <DetailCard
                       label="Contact Email"
                       value={application.contact_email}
                     />
+
                     <DetailCard
-                      label="Resume Version"
-                      value={application.resume_version}
+                      label="Resume ID"
+                      value={
+                        application.resume_id
+                          ? String(application.resume_id)
+                          : null
+                      }
                     />
+
                     <DetailCard
                       label="Created At"
                       value={formatDate(application.created_at)}
@@ -156,6 +169,7 @@ export default function ApplicationDetailsPage() {
 
                   <div className="details-section">
                     <h3 className="details-section-title">Job URL</h3>
+
                     {application.job_url ? (
                       <a
                         className="details-link"
@@ -187,27 +201,6 @@ export default function ApplicationDetailsPage() {
                 </div>
               </div>
             </section>
-
-            <ResumeUploadCard
-              application={application}
-              onUploadComplete={(updatedApplication) => {
-                setApplication(updatedApplication);
-              }}
-            />
-            <ResumeAnalysisCard
-  application={application}
-  onAnalysisComplete={(updatedApplication) => {
-    setApplication(updatedApplication);
-  }}
-/>
-            {application.resume_file_key ? (
-  <div className="details-section">
-    <h3 className="details-section-title">Resume</h3>
-    <p className="details-text">
-      A resume is attached to this application. You can open it from the upload section below.
-    </p>
-  </div>
-) : null}
           </div>
         )}
       </div>

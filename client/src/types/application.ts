@@ -1,21 +1,28 @@
 export const APPLICATION_STATUSES = [
+  "SAVED",
   "APPLIED",
-  "SCREENING",
+  "PHONE_SCREEN",
   "INTERVIEW",
+  "TECHNICAL",
   "OFFER",
+  "ACCEPTED",
   "REJECTED",
-  "GHOSTED",
   "WITHDRAWN",
+  "GHOSTED",
 ] as const;
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export interface Application {
   id: string;
+  user_id: string;
+  resume_id: number | null;
+
   company: string;
   role: string;
   job_description: string;
   job_url: string | null;
+  source: string | null;
 
   status: ApplicationStatus;
   applied_date: string | null;
@@ -24,31 +31,24 @@ export interface Application {
   salary_min: number | null;
   salary_max: number | null;
 
-  source: string | null;
   contact_name: string | null;
   contact_email: string | null;
 
-  resume_version: string | null;
-  resume_file_name: string | null;
-  resume_file_key: string | null;
-  resume_uploaded_at: string | null;
-match_score: number | null;
-analysis_last_run_at: string | null;
-  required_skills: string[] | null;
-  missing_skills: string[] | null;
-  suggestions: string[] | null;
-
   notes: string | null;
 
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateApplicationPayload {
+  resume_id?: number | null;
+
   company: string;
   role: string;
   job_description: string;
   job_url?: string | null;
+  source?: string | null;
 
   status?: ApplicationStatus;
   applied_date?: string | null;
@@ -57,44 +57,10 @@ export interface CreateApplicationPayload {
   salary_min?: number | null;
   salary_max?: number | null;
 
-  source?: string | null;
   contact_name?: string | null;
   contact_email?: string | null;
-
-  resume_version?: string | null;
-
-  required_skills?: string[] | null;
-  missing_skills?: string[] | null;
-  suggestions?: string[] | null;
 
   notes?: string | null;
 }
 
-export interface UpdateApplicationPayload {
-  company?: string;
-  role?: string;
-  job_description?: string;
-  job_url?: string | null;
-
-  status?: ApplicationStatus;
-  applied_date?: string | null;
-  follow_up_date?: string | null;
-
-  salary_min?: number | null;
-  salary_max?: number | null;
-
-  source?: string | null;
-  contact_name?: string | null;
-  contact_email?: string | null;
-
-  resume_version?: string | null;
-  resume_file_name?: string | null;
-  resume_file_key?: string | null;
-  resume_uploaded_at?: string | null;
-
-  required_skills?: string[] | null;
-  missing_skills?: string[] | null;
-  suggestions?: string[] | null;
-
-  notes?: string | null;
-}
+export type UpdateApplicationPayload = Partial<CreateApplicationPayload>;
