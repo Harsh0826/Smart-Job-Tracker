@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { analyzeResumeAgainstJobHandler } from "../controller/ai.controller";
+import { analyzeResumeAgainstJobHandler } from "../controllers/ai.controller";
 
 const router = Router();
 

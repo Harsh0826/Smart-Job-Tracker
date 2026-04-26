@@ -31,6 +31,7 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.status(200).json({ message: "Server is running" });
 });
+app.use("/api/auth", require("./routes/authRoute").default);
 
 app.use("/api/applications", applicationRoutes);
 app.use("/api/analytics", analyticsRoutes);

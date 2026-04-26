@@ -4,7 +4,7 @@ import {
   resumeUploadHandler,
   resumeDownloadHandler,
   extractResumeTextHandler
-} from "../controller/resume.controller";
+} from "../controllers/resume.controller";
 
 const router = Router();
 

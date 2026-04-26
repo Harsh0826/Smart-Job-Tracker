@@ -2,7 +2,6 @@
 @import "./styles/base.css";
 @import "./styles/utilities.css";
 @import "./styles/layout.css";
-
 @import "./styles/components/buttons.css";
 @import "./styles/components/cards.css";
 @import "./styles/components/forms.css";
@@ -14,3 +13,4 @@
 @import "./styles/components/analytics.css";
 @import "./styles/components/resumeUpload.css";
 @import "./styles/components/aiAnalysis.css";
+@import "./styles/components/auth/auth.css";

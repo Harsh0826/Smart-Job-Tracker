@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   getOverviewAnalyticsHandler,
   getStatusDistributionHandler,
-} from "../controller/analytics.controller";
+} from "../controllers/analytics.controller";
 
 const router = Router();
 
