@@ -3,6 +3,52 @@
   margin: 0 auto 24px;
 }
 
+.app-navbar {
+  width: 100%;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.app-navbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-navbar-brand {
+  font-weight: 700;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.app-navbar-links {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.app-nav-link {
+  text-decoration: none;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.app-nav-link-active {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.app-nav-logout {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .app-navbar-inner {
   display: flex;
   align-items: center;

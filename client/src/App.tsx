@@ -8,7 +8,7 @@ import RegisterPage from "./pages/register";
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/applications" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/applications" element={<ApplicationsPage />} />
       <Route path="/applications/:id" element={<ApplicationDetailsPage />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
