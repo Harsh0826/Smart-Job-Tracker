@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApplicationById } from "../api/application";
 import StatusBadge from "../components/application/statusBadge";
+import ResumeUploadCard from "../components/resume/resumeUploadCard";
 import AppNavbar from "../components/ui/appNavbar";
 import EmptyState from "../components/ui/emptyState";
 import PageHeader from "../components/ui/header";
@@ -153,17 +154,22 @@ export default function ApplicationDetailsPage() {
                     />
 
                     <DetailCard
-                      label="Resume ID"
+                      label="Resume"
                       value={
                         application.resume_id
-                          ? String(application.resume_id)
-                          : null
+                          ? `Resume linked: #${application.resume_id}`
+                          : "No resume uploaded"
                       }
                     />
 
                     <DetailCard
                       label="Created At"
                       value={formatDate(application.created_at)}
+                    />
+
+                    <DetailCard
+                      label="Updated At"
+                      value={formatDate(application.updated_at)}
                     />
                   </div>
 
@@ -201,9 +207,19 @@ export default function ApplicationDetailsPage() {
                 </div>
               </div>
             </section>
+
+            <ResumeUploadCard
+              application={application}
+              onUploadComplete={(updatedApplication) => {
+                setApplication(updatedApplication);
+              }}
+            />
+            
           </div>
+          
         )}
       </div>
+      
     </main>
   );
 }

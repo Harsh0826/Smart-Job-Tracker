@@ -64,3 +64,13 @@ export interface CreateApplicationPayload {
 }
 
 export type UpdateApplicationPayload = Partial<CreateApplicationPayload>;
+
+export interface Resume {
+  id: number;
+  user_id: string;
+  file_name: string;
+  file_key: string;
+  label: string | null;
+  is_active: boolean;
+  created_at: string;
+}

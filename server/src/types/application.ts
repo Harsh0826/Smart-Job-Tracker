@@ -85,28 +85,15 @@ export interface UpdateApplicationInput {
 
 
 export interface Resume {
-  id: string;
-  application_id: string;
+  id: number;
   user_id: string;
 
-  version_label: string;        // e.g. "v1", "tailored-jan"
-  is_primary: boolean;
-
-  // File storage
   file_name: string;
-  file_key: string | null;      // S3 object key
-  file_url: string | null;      // pre-signed or public URL
-  file_size_bytes: number | null;
-  mime_type: string;
-  storage_source: "UPLOAD" | "S3" | "GDRIVE" | "URL";
+  file_key: string;
+  label: string | null;
+  is_active: boolean;
 
-  // Parsed text (populated by background job)
-  parsed_text: string | null;
-  parsed_at: string | null;
-
-  uploaded_at: string;
   created_at: string;
-  updated_at: string;
 }
 export interface AIFeedback {
   id: string;

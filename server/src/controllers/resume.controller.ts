@@ -1,18 +1,23 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import {
   completeResumeUpload,
-  getResumeDownloadUrl,
   createResumeUploadUrl,
-    extractResumeText,
+  extractResumeText,
+  getResumeDownloadUrl,
 } from "../services/resume.service";
+import { AuthRequest } from "../middleware/auth";
 
 export async function resumeUploadHandler(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
     const { applicationId, fileName, contentType } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     if (!applicationId || !fileName || !contentType) {
       return res.status(400).json({
@@ -21,6 +26,7 @@ export async function resumeUploadHandler(
     }
 
     const result = await createResumeUploadUrl({
+      userId: req.user.id,
       applicationId,
       fileName,
       contentType,
@@ -33,12 +39,16 @@ export async function resumeUploadHandler(
 }
 
 export async function completeResumeUploadHandler(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const { applicationId, fileName, fileKey } = req.body;
+    const { applicationId, fileName, fileKey, label } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     if (!applicationId || !fileName || !fileKey) {
       return res.status(400).json({
@@ -46,15 +56,18 @@ export async function completeResumeUploadHandler(
       });
     }
 
-    const updatedApplication = await completeResumeUpload({
+    const result = await completeResumeUpload({
+      userId: req.user.id,
       applicationId,
       fileName,
       fileKey,
+      label,
     });
 
     return res.status(200).json({
       message: "Resume uploaded successfully",
-      application: updatedApplication,
+      resume: result.resume,
+      application: result.application,
     });
   } catch (error) {
     next(error);
@@ -62,12 +75,16 @@ export async function completeResumeUploadHandler(
 }
 
 export async function resumeDownloadHandler(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
     const { applicationId } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     if (!applicationId) {
       return res.status(400).json({
@@ -75,7 +92,10 @@ export async function resumeDownloadHandler(
       });
     }
 
-    const result = await getResumeDownloadUrl({ applicationId });
+    const result = await getResumeDownloadUrl({
+      userId: req.user.id,
+      applicationId,
+    });
 
     return res.status(200).json(result);
   } catch (error) {
@@ -84,12 +104,16 @@ export async function resumeDownloadHandler(
 }
 
 export async function extractResumeTextHandler(
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
     const { applicationId } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     if (!applicationId) {
       return res.status(400).json({
@@ -97,7 +121,10 @@ export async function extractResumeTextHandler(
       });
     }
 
-    const result = await extractResumeText({ applicationId });
+    const result = await extractResumeText({
+      userId: req.user.id,
+      applicationId,
+    });
 
     return res.status(200).json(result);
   } catch (error) {

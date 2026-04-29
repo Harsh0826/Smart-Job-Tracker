@@ -1,11 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import {
   completeResumeUpload,
+  resumeDownload,
   resumeUpload,
-  resumeDownload
 } from "../../api/resume";
 import type { Application } from "../../types/application";
-import { formatDate } from "../../utils/format";
 
 type Props = {
   application: Application;
@@ -25,18 +24,12 @@ export default function ResumeUploadCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const existingResumeText = useMemo(() => {
-    if (!application.resume_file_name) {
+    if (!application.resume_id) {
       return "No resume uploaded yet.";
     }
 
-    if (application.resume_uploaded_at) {
-      return `${application.resume_file_name} · uploaded ${formatDate(
-        application.resume_uploaded_at
-      )}`;
-    }
-
-    return application.resume_file_name;
-  }, [application.resume_file_name, application.resume_uploaded_at]);
+    return `Resume linked: #${application.resume_id}`;
+  }, [application.resume_id]);
 
   function resetMessages() {
     setSuccessMessage(null);
@@ -75,28 +68,30 @@ export default function ResumeUploadCard({
       const presigned = await resumeUpload({
         applicationId: application.id,
         fileName: selectedFile.name,
-        contentType: selectedFile.type,
+        contentType: selectedFile.type || "application/pdf",
       });
 
       const uploadResponse = await fetch(presigned.uploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Type": selectedFile.type,
+          "Content-Type": selectedFile.type || "application/pdf",
         },
         body: selectedFile,
       });
 
       if (!uploadResponse.ok) {
-        throw new Error("Failed to upload PDF to S3.");
+        throw new Error("Failed to upload PDF to storage.");
       }
 
       const completed = await completeResumeUpload({
         applicationId: application.id,
         fileName: selectedFile.name,
         fileKey: presigned.fileKey,
+        label: selectedFile.name,
       });
 
       onUploadComplete(completed.application);
+
       setSuccessMessage("Resume uploaded successfully.");
       setSelectedFile(null);
 
@@ -110,7 +105,8 @@ export default function ResumeUploadCard({
       setUploading(false);
     }
   }
- async function handleViewResume() {
+
+  async function handleViewResume() {
     try {
       setOpeningResume(true);
       resetMessages();
@@ -132,8 +128,9 @@ export default function ResumeUploadCard({
     <section className="card">
       <div className="card-content">
         <h2 className="card-title">Resume Upload</h2>
+
         <p className="card-subtitle">
-          Upload or replace the PDF resume for this application.
+          Upload or replace the PDF resume linked to this application.
         </p>
 
         {successMessage ? (
@@ -144,75 +141,76 @@ export default function ResumeUploadCard({
           <div className="alert alert-error">{errorMessage}</div>
         ) : null}
 
-       <div className="resume-upload-stack">
-  <div className="resume-meta-card">
-    <div className="resume-meta-top">
-      <div>
-        <p className="resume-upload-label">Current Resume</p>
-        <p className="resume-upload-value">{existingResumeText}</p>
-      </div>
+        <div className="resume-upload-stack">
+          <div className="resume-meta-card">
+            <div className="resume-meta-top">
+              <div>
+                <p className="resume-upload-label">Current Resume</p>
+                <p className="resume-upload-value">{existingResumeText}</p>
+              </div>
 
-      {application.resume_file_key ? (
-        <span className="resume-badge">Uploaded</span>
-      ) : (
-        <span className="resume-badge resume-badge--empty">
-          Not Uploaded
-        </span>
-      )}
-    </div>
-  </div>
+              {application.resume_id ? (
+                <span className="resume-badge">Uploaded</span>
+              ) : (
+                <span className="resume-badge resume-badge--empty">
+                  Not Uploaded
+                </span>
+              )}
+            </div>
+          </div>
 
-  <div className="resume-upload-panel">
-    <label className="file-upload-box">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/pdf"
-        onChange={handleFileChange}
-        className="file-upload-input"
-      />
+          <div className="resume-upload-panel">
+            <label className="file-upload-box">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+                className="file-upload-input"
+              />
 
-      <div className="file-upload-content">
-        <div className="file-upload-icon">📄</div>
-        <div>
-          <p className="file-upload-title">Choose your resume PDF</p>
-          <p className="file-upload-subtitle">
-            Upload a clean, up-to-date resume
-          </p>
+              <div className="file-upload-content">
+                <div className="file-upload-icon">📄</div>
+
+                <div>
+                  <p className="file-upload-title">Choose your resume PDF</p>
+                  <p className="file-upload-subtitle">
+                    Upload a clean, up-to-date resume.
+                  </p>
+                </div>
+              </div>
+            </label>
+
+            {selectedFile && (
+              <div className="resume-file-selected">
+                <span className="resume-file-label">Selected file</span>
+                <span className="resume-file-name">{selectedFile.name}</span>
+              </div>
+            )}
+
+            <div className="resume-actions">
+              {application.resume_id ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleViewResume}
+                  disabled={openingResume}
+                >
+                  {openingResume ? "Opening..." : "View Resume"}
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleUpload}
+                disabled={uploading || !selectedFile}
+              >
+                {uploading ? "Uploading Resume..." : "Upload Resume"}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-    </label>
-
-    {selectedFile && (
-      <div className="resume-file-selected">
-        <span className="resume-file-label">Selected file</span>
-        <span className="resume-file-name">{selectedFile.name}</span>
-      </div>
-    )}
-
-    <div className="resume-actions">
-      {application.resume_file_key && (
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleViewResume}
-          disabled={openingResume}
-        >
-          {openingResume ? "Opening..." : "View Resume"}
-        </button>
-      )}
-
-      <button
-        type="button"
-        className="btn btn-primary"
-        onClick={handleUpload}
-        disabled={uploading || !selectedFile}
-      >
-        {uploading ? "Uploading Resume..." : "Upload Resume"}
-      </button>
-    </div>
-  </div>
-</div>
       </div>
     </section>
   );

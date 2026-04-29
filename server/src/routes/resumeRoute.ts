@@ -5,8 +5,11 @@ import {
   resumeDownloadHandler,
   extractResumeTextHandler
 } from "../controllers/resume.controller";
+import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
+
+router.use(authMiddleware);
 
 router.post("/upload", resumeUploadHandler);
 router.post("/complete-upload", completeResumeUploadHandler);
