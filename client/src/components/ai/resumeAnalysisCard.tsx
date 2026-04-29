@@ -1,24 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { analyzeResumeJobMatch } from "../../api/ai";
+import type { ResumeJobMatchAnalysis } from "../../api/ai";
 import type { Application } from "../../types/application";
-
-type Analysis = {
-  matchScore: number;
-  requiredSkills: string[];
-  missingSkills: string[];
-  suggestions: string[];
-};
+import { formatDate } from "../../utils/format";
 
 type Props = {
   application: Application;
+  initialAnalysis?: ResumeJobMatchAnalysis | null;
 };
 
-export default function ResumeAnalysisCard({ application }: Props) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+export default function ResumeAnalysisCard({
+  application,
+  initialAnalysis = null,
+}: Props) {
+  const [analysis, setAnalysis] = useState<ResumeJobMatchAnalysis | null>(
+    initialAnalysis
+  );
   const [analyzing, setAnalyzing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const hasResume = Boolean(application.resume_id);
+
+  useEffect(() => {
+    setAnalysis(initialAnalysis);
+  }, [initialAnalysis]);
 
   async function handleAnalyze() {
     try {
@@ -68,13 +73,23 @@ export default function ResumeAnalysisCard({ application }: Props) {
 
         {analysis && (
           <div className="analysis-stack">
-            <div className="detail-item">
-              <p className="detail-item-label">Match Score</p>
-              <p className="detail-item-value">{analysis.matchScore}%</p>
+            <div className="analysis-meta-grid">
+              <div className="detail-item">
+                <p className="detail-item-label">Match Score</p>
+                <p className="detail-item-value">{analysis.matchScore}%</p>
+              </div>
+
+              <div className="detail-item">
+                <p className="detail-item-label">Last Analysis Run</p>
+                <p className="detail-item-value">
+                  {analysis.ranAt ? formatDate(analysis.ranAt) : "-"}
+                </p>
+              </div>
             </div>
 
             <div className="analysis-section">
               <h3 className="details-section-title">Required Skills</h3>
+
               {analysis.requiredSkills.length ? (
                 <div className="chip-list">
                   {analysis.requiredSkills.map((skill) => (
@@ -92,6 +107,7 @@ export default function ResumeAnalysisCard({ application }: Props) {
 
             <div className="analysis-section">
               <h3 className="details-section-title">Missing Skills</h3>
+
               {analysis.missingSkills.length ? (
                 <div className="chip-list">
                   {analysis.missingSkills.map((skill) => (
@@ -109,6 +125,7 @@ export default function ResumeAnalysisCard({ application }: Props) {
 
             <div className="analysis-section">
               <h3 className="details-section-title">Suggestions</h3>
+
               {analysis.suggestions.length ? (
                 <ul className="suggestion-list">
                   {analysis.suggestions.map((item, index) => (
@@ -133,7 +150,11 @@ export default function ResumeAnalysisCard({ application }: Props) {
             onClick={handleAnalyze}
             disabled={analyzing || !hasResume}
           >
-            {analyzing ? "Analyzing..." : "Analyze Resume"}
+            {analyzing
+              ? "Analyzing..."
+              : analysis
+              ? "Re-run Analysis"
+              : "Analyze Resume"}
           </button>
         </div>
 

@@ -209,3 +209,48 @@ export async function analyzeResumeAgainstJob({
     resumeTextPreview: resumeText.slice(0, 1200),
   };
 }
+export async function getLatestAnalysis({
+  userId,
+  applicationId,
+}: {
+  userId: string;
+  applicationId: string;
+}) {
+  const { data: application, error: appError } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("id", applicationId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (appError) throw appError;
+
+  if (!application) {
+    throw new Error("Application not found or you do not have access.");
+  }
+
+  const { data, error } = await supabase
+    .from("application_analyses")
+    .select("match_score, required_skills, missing_skills, suggestions, ran_at")
+    .eq("application_id", applicationId)
+    .order("ran_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data) {
+    return { analysis: null };
+  }
+
+  return {
+    analysis: {
+      matchScore: Number(data.match_score ?? 0),
+      requiredSkills: data.required_skills ?? [],
+      missingSkills: data.missing_skills ?? [],
+      suggestions: data.suggestions ?? [],
+      ranAt: data.ran_at ?? null,
+    },
+  };
+}

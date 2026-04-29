@@ -9,6 +9,8 @@ import EmptyState from "../components/ui/emptyState";
 import PageHeader from "../components/ui/header";
 import type { Application } from "../types/application";
 import { formatCurrency, formatDate } from "../utils/format";
+import { getLatestResumeAnalysis } from "../api/ai";
+import type { ResumeJobMatchAnalysis } from "../api/ai";
 
 function formatSalaryRange(min: number | null, max: number | null): string {
   if (min == null && max == null) return "-";
@@ -43,6 +45,7 @@ export default function ApplicationDetailsPage() {
   const [application, setApplication] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [latestAnalysis, setLatestAnalysis] = useState<ResumeJobMatchAnalysis | null>(null);
 
   async function loadApplication() {
     if (!id) {
@@ -56,7 +59,10 @@ export default function ApplicationDetailsPage() {
       setError(null);
 
       const data = await getApplicationById(id);
+      const analysis = await getLatestResumeAnalysis(data.id);
       setApplication(data);
+      setLatestAnalysis(analysis);
+    
     } catch (err) {
       console.error(err);
       setError("Failed to load application details.");
@@ -216,7 +222,7 @@ export default function ApplicationDetailsPage() {
               }}
             />
 
-            <ResumeAnalysisCard application={application} />
+            <ResumeAnalysisCard application={application}   initialAnalysis={latestAnalysis} />
           </div>
         )}
       </div>
