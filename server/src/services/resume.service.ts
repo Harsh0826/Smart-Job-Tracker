@@ -1,10 +1,18 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PDFParse } from "pdf-parse";
 import { s3Client } from "../config/aws";
 import { env } from "../config/env";
 import { supabase } from "../config/supabase";
 import { streamToBuffer } from "../utils/stream";
+
+const SIGNED_URL_TTL_SECONDS = 300;
+const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10 MB
 
 type UploadInput = {
   userId: string;
@@ -27,10 +35,16 @@ type ApplicationResumeInput = {
 };
 
 function sanitizeFileName(fileName: string): string {
-  return fileName
+  const sanitized = fileName
     .trim()
     .replace(/\s+/g, "_")
     .replace(/[^a-zA-Z0-9._-]/g, "");
+
+  if (!sanitized) {
+    throw new Error("File name is invalid.");
+  }
+
+  return sanitized;
 }
 
 function buildResumeObjectKey(
@@ -55,13 +69,17 @@ function cleanExtractedText(text: string): string {
 async function getOwnedApplication(applicationId: string, userId: string) {
   const { data, error } = await supabase
     .from("applications")
-    .select("*")
+    .select("id, resume_id")
     .eq("id", applicationId)
     .eq("user_id", userId)
     .is("deleted_at", null)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+
+  if (!data) {
+    throw new Error("Application not found or access denied.");
+  }
 
   return data;
 }
@@ -75,17 +93,30 @@ async function getApplicationResume(applicationId: string, userId: string) {
 
   const { data: resume, error } = await supabase
     .from("resumes")
-    .select("*")
+    .select("id, file_name, file_key, label, is_active, created_at")
     .eq("id", application.resume_id)
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+
+  if (!resume) {
+    throw new Error("Resume not found or access denied.");
+  }
 
   return {
     application,
     resume,
   };
+}
+
+async function deleteS3Object(fileKey: string) {
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: env.awsS3ResumeBucket,
+      Key: fileKey,
+    })
+  );
 }
 
 export async function createResumeUploadUrl({
@@ -113,13 +144,13 @@ export async function createResumeUploadUrl({
   });
 
   const uploadUrl = await getSignedUrl(s3Client, command, {
-    expiresIn: 300,
+    expiresIn: SIGNED_URL_TTL_SECONDS,
   });
 
   return {
     uploadUrl,
     fileKey,
-    expiresIn: 300,
+    expiresIn: SIGNED_URL_TTL_SECONDS,
   };
 }
 
@@ -130,7 +161,60 @@ export async function completeResumeUpload({
   fileKey,
   label,
 }: CompleteUploadInput) {
-  await getOwnedApplication(applicationId, userId);
+  const application = await getOwnedApplication(applicationId, userId);
+
+  const expectedPrefix = `resumes/${userId}/${applicationId}/`;
+
+  if (!fileKey.startsWith(expectedPrefix)) {
+    throw new Error("Invalid file key.");
+  }
+
+  let head;
+
+  try {
+    head = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: env.awsS3ResumeBucket,
+        Key: fileKey,
+      })
+    );
+  } catch {
+    throw new Error("File not found in storage. Upload may have failed.");
+  }
+
+  if (head.ContentType !== "application/pdf") {
+    await deleteS3Object(fileKey);
+    throw new Error("Uploaded file is not a valid PDF.");
+  }
+
+  if ((head.ContentLength ?? 0) > MAX_RESUME_BYTES) {
+    await deleteS3Object(fileKey);
+
+    throw new Error(
+      `Resume exceeds the maximum allowed size of ${
+        MAX_RESUME_BYTES / (1024 * 1024)
+      } MB.`
+    );
+  }
+
+  let oldResumeFileKey: string | null = null;
+
+  if (application.resume_id) {
+    const { data: oldResume } = await supabase
+      .from("resumes")
+      .select("file_key")
+      .eq("id", application.resume_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    oldResumeFileKey = oldResume?.file_key ?? null;
+  }
+
+  await supabase
+    .from("resumes")
+    .update({ is_active: false })
+    .eq("user_id", userId)
+    .eq("is_active", true);
 
   const { data: resume, error: resumeError } = await supabase
     .from("resumes")
@@ -141,26 +225,37 @@ export async function completeResumeUpload({
       label: label || fileName,
       is_active: true,
     })
-    .select()
+    .select("id, user_id, file_name, file_key, label, is_active, created_at")
     .single();
 
   if (resumeError) throw resumeError;
 
-  const { data: application, error: applicationError } = await supabase
+  const { data: updatedApplication, error: appError } = await supabase
     .from("applications")
     .update({
       resume_id: resume.id,
     })
     .eq("id", applicationId)
     .eq("user_id", userId)
-    .select()
+    .select("*")
     .single();
 
-  if (applicationError) throw applicationError;
+  if (appError) {
+    await supabase.from("resumes").delete().eq("id", resume.id);
+    throw appError;
+  }
+
+  if (oldResumeFileKey && oldResumeFileKey !== fileKey) {
+    try {
+      await deleteS3Object(oldResumeFileKey);
+    } catch (error) {
+      console.warn("Failed to delete old resume from S3:", error);
+    }
+  }
 
   return {
     resume,
-    application,
+    application: updatedApplication,
   };
 }
 
@@ -174,18 +269,18 @@ export async function getResumeDownloadUrl({
     Bucket: env.awsS3ResumeBucket,
     Key: resume.file_key,
     ResponseContentType: "application/pdf",
-    ResponseContentDisposition: resume.file_name
-      ? `inline; filename="${resume.file_name}"`
-      : 'inline; filename="resume.pdf"',
+    ResponseContentDisposition: `inline; filename="${
+      resume.file_name ?? "resume.pdf"
+    }"`,
   });
 
   const downloadUrl = await getSignedUrl(s3Client, command, {
-    expiresIn: 300,
+    expiresIn: SIGNED_URL_TTL_SECONDS,
   });
 
   return {
     downloadUrl,
-    expiresIn: 300,
+    expiresIn: SIGNED_URL_TTL_SECONDS,
     fileName: resume.file_name,
     resumeId: resume.id,
   };
@@ -197,22 +292,28 @@ export async function extractResumeText({
 }: ApplicationResumeInput) {
   const { resume } = await getApplicationResume(applicationId, userId);
 
-  const command = new GetObjectCommand({
-    Bucket: env.awsS3ResumeBucket,
-    Key: resume.file_key,
+  const s3Response = await s3Client.send(
+    new GetObjectCommand({
+      Bucket: env.awsS3ResumeBucket,
+      Key: resume.file_key,
+    })
+  );
+
+  // ✅ YOU MISSED THIS LINE
+  const pdfBuffer = await streamToBuffer(s3Response.Body);
+
+  const parser = new PDFParse({
+    data: pdfBuffer,
   });
 
-  const response = await s3Client.send(command);
-  const pdfBuffer = await streamToBuffer(response.Body);
-
-  const parser = new PDFParse({ data: pdfBuffer });
   const parsed = await parser.getText();
+
   await parser.destroy();
 
-  const extractedText = cleanExtractedText(parsed.text || "");
+  const extractedText = cleanExtractedText(parsed.text ?? "");
 
-  if (!extractedText) {
-    throw new Error("Failed to extract text from resume.");
+  if (!extractedText || extractedText.length < 50) {
+    throw new Error("Resume appears empty or unreadable.");
   }
 
   return {

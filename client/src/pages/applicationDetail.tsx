@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getApplicationById } from "../api/application";
 import StatusBadge from "../components/application/statusBadge";
+import ResumeAnalysisCard from "../components/ai/resumeAnalysisCard";
 import ResumeUploadCard from "../components/resume/resumeUploadCard";
 import AppNavbar from "../components/ui/appNavbar";
 import EmptyState from "../components/ui/emptyState";
@@ -85,7 +86,7 @@ export default function ApplicationDetailsPage() {
 
         <PageHeader
           title="Application Details"
-          subtitle="Review the full application information and job context."
+          subtitle="Review the full application information, resume, and AI analysis."
         />
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -214,12 +215,11 @@ export default function ApplicationDetailsPage() {
                 setApplication(updatedApplication);
               }}
             />
-            
+
+            <ResumeAnalysisCard application={application} />
           </div>
-          
         )}
       </div>
-      
     </main>
   );
 }

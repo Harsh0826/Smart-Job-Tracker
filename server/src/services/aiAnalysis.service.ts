@@ -3,6 +3,7 @@ import { supabase } from "../config/supabase";
 import { extractResumeText } from "./resume.service";
 
 type AnalyzeResumeAgainstJobInput = {
+  userId: string;
   applicationId: string;
 };
 
@@ -13,127 +14,157 @@ type ParsedAnalysis = {
   suggestions: string[];
 };
 
+const MODEL_USED = "gpt-oss-120b";
+const PROMPT_VERSION = "v2";
+
+function isValidJobDescription(text: string): boolean {
+  const clean = text.trim();
+
+  if (clean.length < 250) return false;
+
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length < 50) return false;
+
+  return /responsibilities|requirements|qualifications|experience|skills|you will|must have|nice to have|preferred|about the role|what you.?ll do|minimum qualifications/i.test(
+    clean
+  );
+}
+
+function safeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map(String)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
 function normalizeAnalysis(data: any): ParsedAnalysis {
-  const rawScore = Number(data?.matchScore ?? 0);
+  const rawScore = Number(data?.matchScore);
 
   return {
     matchScore: Number.isFinite(rawScore)
-      ? Math.max(0, Math.min(100, rawScore))
+      ? Math.round(Math.max(0, Math.min(100, rawScore)))
       : 0,
-    requiredSkills: Array.isArray(data?.requiredSkills)
-      ? data.requiredSkills.map(String)
-      : [],
-    missingSkills: Array.isArray(data?.missingSkills)
-      ? data.missingSkills.map(String)
-      : [],
-    suggestions: Array.isArray(data?.suggestions)
-      ? data.suggestions.map(String)
-      : [],
+    requiredSkills: safeStringArray(data?.requiredSkills),
+    missingSkills: safeStringArray(data?.missingSkills).slice(0, 8),
+    suggestions: safeStringArray(data?.suggestions).slice(0, 6),
   };
 }
 
+function extractJsonObject(text: string): string {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("AI returned invalid JSON.");
+  }
+
+  return text.slice(start, end + 1);
+}
+
+function buildPrompt(params: {
+  role: string;
+  company: string;
+  jobDescription: string;
+  resumeText: string;
+}) {
+  return `
+You are a senior technical recruiter and resume analyst.
+
+Analyze the resume against the job description.
+
+Rules:
+- Use ONLY the job description and resume.
+- Do NOT infer requirements from company name, role title, or general industry knowledge.
+- Required skills must come directly from the job description.
+- Missing skills must be required by the job description and weak/absent in the resume.
+- Suggestions must be specific resume edits.
+- Return ONLY valid JSON.
+
+Output:
+{
+  "matchScore": <integer 0-100>,
+  "requiredSkills": [<string>],
+  "missingSkills": [<string>],
+  "suggestions": [<string>]
+}
+
+Job Title:
+${params.role}
+
+Company:
+${params.company}
+
+Job Description:
+${params.jobDescription.slice(0, 7000)}
+
+Resume:
+${params.resumeText.slice(0, 7000)}
+`;
+}
+
 export async function analyzeResumeAgainstJob({
+  userId,
   applicationId,
 }: AnalyzeResumeAgainstJobInput) {
   const { data: application, error } = await supabase
     .from("applications")
-    .select("id, role, company, job_description, resume_file_key")
+    .select("id, role, company, job_description, resume_id")
     .eq("id", applicationId)
-    .single();
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle();
 
   if (error) throw error;
 
   if (!application) {
-    throw new Error("Application not found.");
+    throw new Error("Application not found or you do not have access.");
   }
 
-  if (!application.job_description?.trim()) {
-    throw new Error("Job description is missing for this application.");
+  const jobDescription = application.job_description?.trim() ?? "";
+
+  if (!isValidJobDescription(jobDescription)) {
+    throw new Error(
+      "Job description is too short or invalid. Please paste the full job description with responsibilities, qualifications, and required skills before running resume analysis."
+    );
   }
 
-  if (!application.resume_file_key) {
-    throw new Error("No resume uploaded for this application.");
+  if (!application.resume_id) {
+    throw new Error("No resume linked to this application.");
   }
 
-  const resumeResult = await extractResumeText({ applicationId });
+  const { data: resume, error: resumeError } = await supabase
+    .from("resumes")
+    .select("id, file_key")
+    .eq("id", application.resume_id)
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  const prompt = `
-You are a senior technical recruiter and resume analyst with 15+ years of experience evaluating candidates for software engineering and technical roles.
+  if (resumeError) throw resumeError;
 
-Your task: Perform a precise, evidence-based analysis of the resume against the job description below.
+  if (!resume) {
+    throw new Error("Resume not found or you do not have access.");
+  }
 
----
+  const resumeResult = await extractResumeText({
+    userId,
+    applicationId,
+  });
 
-## SCORING RUBRIC — matchScore (0–100)
+  const resumeText = resumeResult.text?.trim() ?? "";
 
-Score based on cumulative weighted factors:
+  if (resumeText.length < 100) {
+    throw new Error("Resume text is too short for reliable analysis.");
+  }
 
-| Factor                              | Weight |
-|-------------------------------------|--------|
-| Required technical skills coverage  | 40%    |
-| Years / depth of relevant experience| 20%    |
-| Domain / industry alignment         | 15%    |
-| Education & certifications match    | 10%    |
-| Soft skills & leadership signals    | 10%    |
-| Recency of relevant experience      | 5%     |
-
-Score anchors:
-- 90–100: Exceptional match. Meets nearly all requirements with strong evidence.
-- 75–89:  Strong match. Meets most requirements; minor gaps.
-- 60–74:  Moderate match. Meets core requirements; notable gaps exist.
-- 40–59:  Weak match. Meets some requirements; significant gaps.
-- 0–39:   Poor match. Fundamental misalignment with role requirements.
-
----
-
-## ANALYSIS RULES
-
-**requiredSkills:**
-- Extract only the top 6–12 explicitly stated or strongly implied technical skills from the job description
-- Include: languages, frameworks, platforms, tools, cloud services, databases, methodologies
-- Order by importance to the role (most critical first)
-- Use the exact terminology from the job description
-
-**missingSkills:**
-- List only skills that are:
-  (a) present in requiredSkills AND
-  (b) absent, vague, or insufficiently demonstrated in the resume
-- Do NOT list a skill as missing if the resume shows equivalent/adjacent proficiency
-- Cap at 8 items maximum
-
-**suggestions:**
-- Provide 3–6 specific, actionable suggestions
-- Each suggestion must reference a concrete resume change (not generic advice)
-- Format: Start with an action verb (Add, Quantify, Rename, Highlight, Reframe, Include)
-- Bad example: "Improve your AWS section."
-- Good example: "Add a bullet under your backend projects describing how you used AWS S3 and EC2 for deployment, including scale or cost impact if available."
-
----
-
-## OUTPUT FORMAT
-
-Return ONLY a valid JSON object. No markdown. No explanation. No trailing commas.
-
-{
-  "matchScore": <integer 0–100>,
-  "requiredSkills": [<string>, ...],
-  "missingSkills": [<string>, ...],
-  "suggestions": [<string>, ...]
-}
-
----
-
-## INPUT
-
-**Job Title:** ${application.role}
-**Company:** ${application.company}
-
-**Job Description:**
-${application.job_description.slice(0, 6000)}
-
-**Resume:**
-${resumeResult.text.slice(0, 6000)}
-`;
+  const prompt = buildPrompt({
+    role: application.role,
+    company: application.company,
+    jobDescription,
+    resumeText,
+  });
 
   const response = await openai.responses.create({
     model: "openai/gpt-oss-120b:free",
@@ -143,36 +174,38 @@ ${resumeResult.text.slice(0, 6000)}
   const rawText = response.output_text?.trim();
 
   if (!rawText) {
-    throw new Error("No analysis response received from OpenAI.");
+    throw new Error("No analysis response received.");
   }
 
   let parsed: ParsedAnalysis;
 
   try {
-    parsed = normalizeAnalysis(JSON.parse(rawText));
-  } catch (error) {
-    console.error("Failed to parse model output:", rawText);
+    parsed = normalizeAnalysis(JSON.parse(extractJsonObject(rawText)));
+  } catch {
+    console.error("Invalid AI JSON:", rawText);
     throw new Error("AI returned invalid JSON.");
   }
 
-  const { data: updatedApplication, error: updateError } = await supabase
-    .from("applications")
-    .update({
+  const { data: dbAnalysis, error: insertError } = await supabase
+    .from("application_analyses")
+    .insert({
+      application_id: applicationId,
+      resume_id: resume.id,
+      model_used: MODEL_USED,
+      prompt_version: PROMPT_VERSION,
       match_score: parsed.matchScore,
       required_skills: parsed.requiredSkills,
       missing_skills: parsed.missingSkills,
       suggestions: parsed.suggestions,
-      analysis_last_run_at: new Date().toISOString(),
     })
-    .eq("id", applicationId)
     .select()
     .single();
 
-  if (updateError) throw updateError;
+  if (insertError) throw insertError;
 
   return {
-    application: updatedApplication,
     analysis: parsed,
-    resumeTextPreview: resumeResult.text.slice(0, 1200),
+    dbAnalysis,
+    resumeTextPreview: resumeText.slice(0, 1200),
   };
 }

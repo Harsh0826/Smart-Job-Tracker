@@ -1,5 +1,4 @@
 import { apiClient } from "./client";
-import type { Application } from "../types/application";
 
 export interface ResumeJobMatchAnalysis {
   matchScore: number;
@@ -9,8 +8,8 @@ export interface ResumeJobMatchAnalysis {
 }
 
 export interface AnalyzeResumeJobMatchResponse {
-  application: Application;
   analysis: ResumeJobMatchAnalysis;
+  dbAnalysis: unknown;
   resumeTextPreview: string;
 }
 
