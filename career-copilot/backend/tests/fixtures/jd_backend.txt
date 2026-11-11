@@ -1,0 +1,19 @@
+Senior Backend Engineer
+Acme Freight is hiring a Senior Backend Engineer to scale our logistics platform.
+
+Responsibilities:
+- Design and operate high-throughput services in Python
+- Own CI/CD and observability for the platform team
+
+Requirements:
+- 5+ years of backend engineering experience
+- Strong Python and FastAPI experience
+- Production experience with Kubernetes and AWS
+- PostgreSQL performance tuning
+
+Nice to have:
+- Terraform or other infrastructure as code
+- Kafka
+- Mentoring experience
+
+Must be authorized to work in the United States.

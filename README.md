@@ -38,6 +38,33 @@ A full-stack web application that helps users track job applications, upload res
 
 ---
 
+### 🧭 AI Career Copilot (`career-copilot/`)
+A multi-agent coach that turns your resume into a tailored, ATS-ready application without inventing anything:
+- **Tailor & verify:** rewrites your resume for a job; a Truthfulness Verifier blocks any claim your profile can't back up
+- **ATS checks:** format linting, a parse round-trip test, and a keyword-match score
+- **Interview readiness score:** ATS match plus a per-bullet impact grade with concrete fixes
+- **Gap interview:** asks about missing skills and unquantified bullets; your answers become verified facts
+- **Cover letter:** grounded in your strongest evidence for the role
+- **Interview prep:** likely questions with STAR stories from your own experience, plus practice-answer scoring
+- Works offline with rule-based agents; uses Claude (Opus 5.5 / Haiku 5.5) when `ANTHROPIC_API_KEY` is set
+
+Setup and details: [career-copilot/README.md](career-copilot/README.md)
+
+---
+
+## 🗂️ Repository Layout
+
+```
+client/           Job tracker UI (React + Vite)
+server/           Job tracker API (Node.js + Express)
+terraform/        AWS S3 infrastructure
+career-copilot/   AI Career Copilot
+  backend/        Agents + API (Python, FastAPI)
+  frontend/       Guided coaching UI (Next.js)
+```
+
+---
+
 ## 🧠 Tech Stack
 
 Frontend:

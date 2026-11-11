@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "contact": {
+    "name": "Jordan Rivera",
+    "email": "jordan.rivera@example.com",
+    "phone": "(555) 010-2030",
+    "location": "Boston, MA",
+    "links": ["linkedin.com/in/jordan-rivera-example"]
+  },
+  "summary": "Backend engineer who builds reliable Python and Java services for logistics and healthcare platforms.",
+  "experiences": [
+    {
+      "id": "e1",
+      "title": "Senior Software Engineer",
+      "company": "Northwind Logistics",
+      "location": "Boston, MA",
+      "start": "2021-03",
+      "end": null,
+      "bullets": [
+        {"id": "e1.b1", "text": "Built a Python and FastAPI service that routes 2M shipment events per day, cutting p95 latency by 40%"},
+        {"id": "e1.b2", "text": "Migrated 30 services from VMs to Kubernetes on AWS, reducing infrastructure cost by $250K per year"},
+        {"id": "e1.b3", "text": "Mentored 4 engineers and led design reviews for the platform team"},
+        {"id": "e1.b4", "text": "Introduced CI/CD pipelines with GitHub Actions, raising deploy frequency from weekly to daily"}
+      ]
+    },
+    {
+      "id": "e2",
+      "title": "Software Engineer",
+      "company": "Contoso Health",
+      "location": "Providence, RI",
+      "start": "2018-06",
+      "end": "2021-02",
+      "bullets": [
+        {"id": "e2.b1", "text": "Developed REST APIs in Java and Spring for a patient scheduling product used by 120 clinics"},
+        {"id": "e2.b2", "text": "Tuned PostgreSQL queries and indexes, cutting report generation from 10 minutes to 45 seconds"},
+        {"id": "e2.b3", "text": "Collaborated with product and design to ship 3 major releases"},
+        {"id": "e2.b4", "text": "Responsible for on-call support and incident response for the scheduling API"}
+      ]
+    }
+  ],
+  "education": [
+    {"id": "ed1", "institution": "Lakeside State University", "degree": "B.S.", "field": "Computer Science", "end": "2018-05"}
+  ],
+  "skills": ["Python", "Java", "FastAPI", "Spring", "Kubernetes", "Docker", "AWS", "PostgreSQL", "CI/CD", "Terraform"],
+  "certifications": ["AWS Certified Solutions Architect - Associate"]
+}
