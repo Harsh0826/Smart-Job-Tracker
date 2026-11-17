@@ -1,9 +1,5 @@
 import { supabase } from "../config/supabase";
 
-/**
- * Status buckets used by the analytics page. SCREENING is kept as the bucket name the client
- * already renders; it counts PHONE_SCREEN (the real status) plus legacy SCREENING rows.
- */
 type StatusCounts = {
   APPLIED: number;
   SCREENING: number;
@@ -14,6 +10,7 @@ type StatusCounts = {
   WITHDRAWN: number;
 };
 
+// The client renders a SCREENING bucket, which also counts PHONE_SCREEN and ASSESSMENT.
 const BUCKET: Record<string, keyof StatusCounts> = {
   APPLIED: "APPLIED",
   PHONE_SCREEN: "SCREENING",
@@ -29,7 +26,7 @@ const BUCKET: Record<string, keyof StatusCounts> = {
   WITHDRAWN: "WITHDRAWN",
 };
 
-/** Statuses before an application is actually submitted; excluded from funnel rates. */
+// Not submitted yet, so these are left out of the funnel rates.
 const PRE_APPLICATION = new Set(["SAVED", "DISCOVERED", "UNDER_REVIEW", "READY_TO_APPLY", "EXPIRED"]);
 
 async function countStatuses(userId: string) {
@@ -50,39 +47,65 @@ async function countStatuses(userId: string) {
     GHOSTED: 0,
     WITHDRAWN: 0,
   };
+
   let preApplication = 0;
+
   for (const item of data ?? []) {
     const status = String(item.status);
+
     if (PRE_APPLICATION.has(status)) {
       preApplication++;
       continue;
     }
+
     const bucket = BUCKET[status];
-    if (bucket) counts[bucket]++;
+
+    if (bucket) {
+      counts[bucket]++;
+    }
   }
+
   return { counts, preApplication };
+}
+
+function percentOf(count: number, total: number): number {
+  if (total === 0) {
+    return 0;
+  }
+
+  return Number(((count / total) * 100).toFixed(1));
 }
 
 export async function getOverviewAnalytics(userId: string) {
   const { counts, preApplication } = await countStatuses(userId);
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  let total = 0;
+
+  for (const count of Object.values(counts)) {
+    total += count;
+  }
+
   const active = counts.APPLIED + counts.SCREENING + counts.INTERVIEW;
   const closed = counts.OFFER + counts.REJECTED + counts.GHOSTED + counts.WITHDRAWN;
-  const pct = (n: number) => (total === 0 ? 0 : Number(((n / total) * 100).toFixed(1)));
+  const responded = counts.SCREENING + counts.INTERVIEW + counts.OFFER;
 
   return {
     total,
     active,
     closed,
     preApplication,
-    successRate: pct(counts.OFFER),
-    rejectionRate: pct(counts.REJECTED),
-    responseRate: pct(counts.SCREENING + counts.INTERVIEW + counts.OFFER),
+    successRate: percentOf(counts.OFFER, total),
+    rejectionRate: percentOf(counts.REJECTED, total),
+    responseRate: percentOf(responded, total),
     ...counts,
   };
 }
 
 export async function getStatusDistribution(userId: string) {
   const { counts } = await countStatuses(userId);
-  return Object.entries(counts).map(([status, count]) => ({ status, count }));
+
+  return Object.entries(counts).map(([status, count]) => ({
+    status,
+    count,
+  }));
 }

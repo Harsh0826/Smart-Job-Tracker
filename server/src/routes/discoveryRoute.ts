@@ -13,9 +13,13 @@ import {
 import { authMiddleware } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 
+const runLimit = rateLimit({ windowMs: 10 * 60_000, max: 2, name: "discovery run" });
+
 export const discoveryRouter = Router();
+
 discoveryRouter.use(authMiddleware);
-discoveryRouter.post("/run", rateLimit({ windowMs: 10 * 60_000, max: 2, name: "discovery run" }), runDiscoveryHandler);
+
+discoveryRouter.post("/run", runLimit, runDiscoveryHandler);
 discoveryRouter.get("/runs", listRunsHandler);
 discoveryRouter.get("/summary", discoverySummaryHandler);
 discoveryRouter.get("/jobs", listJobsHandler);
@@ -24,6 +28,8 @@ discoveryRouter.post("/jobs/:id/promote", promoteJobHandler);
 discoveryRouter.post("/jobs/:id/archive", archiveJobHandler);
 
 export const profileRouter = Router();
+
 profileRouter.use(authMiddleware);
+
 profileRouter.get("/master", getMasterProfileHandler);
 profileRouter.put("/master", putMasterProfileHandler);

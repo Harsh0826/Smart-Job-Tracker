@@ -1,8 +1,4 @@
-/**
- * Application lifecycle. Original values are unchanged; DISCOVERED, UNDER_REVIEW, READY_TO_APPLY,
- * ASSESSMENT, FINAL_INTERVIEW and EXPIRED were added by
- * supabase/migrations/20261116000000_job_discovery.sql.
- */
+// Keep in sync with the status values in supabase/migrations/20261116000000_job_discovery.sql.
 export const APPLICATION_STATUSES = [
   "DISCOVERED",
   "UNDER_REVIEW",

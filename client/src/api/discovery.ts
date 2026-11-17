@@ -1,5 +1,8 @@
 import { apiClient } from "./client";
 
+// A run queries every job board, so it can take a few minutes.
+const RUN_TIMEOUT_MS = 5 * 60 * 1000;
+
 export type WorkArrangement = "remote" | "hybrid" | "onsite" | "unknown";
 
 export interface DiscoveredJobListItem {
@@ -31,6 +34,13 @@ export interface DimensionScore {
   explanation: string;
 }
 
+export interface ScoreBreakdown {
+  total: number;
+  dimensions: Record<string, DimensionScore>;
+  lowConfidence: string[];
+  requiredYears: number | null;
+}
+
 export interface DiscoveredJob extends DiscoveredJobListItem {
   description: string | null;
   source_url: string;
@@ -41,12 +51,12 @@ export interface DiscoveredJob extends DiscoveredJobListItem {
   salary_min: number | null;
   salary_max: number | null;
   salary_currency: string | null;
-  score_breakdown: {
-    total: number;
-    dimensions: Record<string, DimensionScore>;
-    lowConfidence: string[];
-    requiredYears: number | null;
-  } | null;
+  score_breakdown: ScoreBreakdown | null;
+}
+
+export interface DiscoveredJobList {
+  total: number;
+  items: DiscoveredJobListItem[];
 }
 
 export interface DiscoverySummary {
@@ -66,6 +76,11 @@ export interface RunSummary {
   nearMisses: { company: string; title: string; matchScore: number }[];
 }
 
+export interface PromoteResult {
+  application_id: string;
+  created: boolean;
+}
+
 export interface JobFilters {
   minScore?: number;
   q?: string;
@@ -77,27 +92,60 @@ export interface JobFilters {
   shortlisted?: "true" | "false" | "all";
 }
 
-export async function getDiscoverySummary(): Promise<DiscoverySummary> {
-  return (await apiClient.get<DiscoverySummary>("/discovery/summary")).data;
+function buildJobParams(filters: JobFilters) {
+  const params: Record<string, string | number> = {};
+
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === "") continue;
+
+    params[key] = value;
+  }
+
+  return params;
 }
 
-export async function listDiscoveredJobs(filters: JobFilters = {}) {
-  const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== ""));
-  return (await apiClient.get<{ total: number; items: DiscoveredJobListItem[] }>("/discovery/jobs", { params })).data;
+export async function getDiscoverySummary(): Promise<DiscoverySummary> {
+  const response = await apiClient.get<DiscoverySummary>("/discovery/summary");
+  return response.data;
+}
+
+export async function listDiscoveredJobs(
+  filters: JobFilters = {}
+): Promise<DiscoveredJobList> {
+  const response = await apiClient.get<DiscoveredJobList>("/discovery/jobs", {
+    params: buildJobParams(filters),
+  });
+
+  return response.data;
 }
 
 export async function getDiscoveredJob(id: string): Promise<DiscoveredJob> {
-  return (await apiClient.get<DiscoveredJob>(`/discovery/jobs/${id}`)).data;
+  const response = await apiClient.get<DiscoveredJob>(`/discovery/jobs/${id}`);
+  return response.data;
 }
 
 export async function runDiscoveryNow(): Promise<RunSummary> {
-  return (await apiClient.post<RunSummary>("/discovery/run", {}, { timeout: 5 * 60_000 })).data;
+  const response = await apiClient.post<RunSummary>(
+    "/discovery/run",
+    {},
+    { timeout: RUN_TIMEOUT_MS }
+  );
+
+  return response.data;
 }
 
-export async function promoteDiscoveredJob(id: string) {
-  return (await apiClient.post<{ application_id: string; created: boolean }>(`/discovery/jobs/${id}/promote`)).data;
+export async function promoteDiscoveredJob(id: string): Promise<PromoteResult> {
+  const response = await apiClient.post<PromoteResult>(
+    `/discovery/jobs/${id}/promote`
+  );
+
+  return response.data;
 }
 
 export async function archiveDiscoveredJob(id: string, archived = true) {
-  return (await apiClient.post(`/discovery/jobs/${id}/archive`, { archived })).data;
+  const response = await apiClient.post(`/discovery/jobs/${id}/archive`, {
+    archived,
+  });
+
+  return response.data;
 }

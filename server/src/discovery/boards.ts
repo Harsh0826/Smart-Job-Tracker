@@ -10,11 +10,13 @@ const boardSchema = z.object({
   website: z.string().url().nullable().optional(),
 });
 
-/**
- * Boards come from board-list.json (verified public Greenhouse/Lever/Ashby boards with Canadian jobs),
- * or from the JSON file named by DISCOVERY_BOARDS_FILE when set.
- */
+// DISCOVERY_BOARDS_FILE can point at a different board list than board-list.json.
 export function loadBoards(path = process.env.DISCOVERY_BOARDS_FILE): BoardConfig[] {
-  const raw: unknown = path ? JSON.parse(fs.readFileSync(path, "utf8")) : defaultBoards;
+  let raw: unknown = defaultBoards;
+
+  if (path) {
+    raw = JSON.parse(fs.readFileSync(path, "utf8"));
+  }
+
   return z.array(boardSchema).parse(raw);
 }

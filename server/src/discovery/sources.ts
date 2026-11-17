@@ -1,56 +1,74 @@
-/**
- * Provider adapters for public, unauthenticated job-board APIs that employers publish on purpose:
- *   Greenhouse  https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true
- *   Lever       https://api.lever.co/v0/postings/{token}?mode=json
- *   Ashby       https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true
- *
- * Posting-date provenance (the freshness filter depends on this being right):
- *   Greenhouse: `first_published` is the original publish time. `updated_at` changes on every edit
- *               and is NEVER used as a posting date.
- *   Lever:      `createdAt` (epoch ms). A posting is published at or after creation, so a createdAt
- *               inside the window guarantees the publish time is too (conservative).
- *   Ashby:      `publishedAt`.
- *
- * LinkedIn and Indeed are intentionally not implemented: neither offers a public job-search API and
- * their terms prohibit scraping. Workday tenants only expose relative dates ("Posted Today"), which
- * cannot be verified, so they are left for a later adapter that would mark dates unverified.
- */
-
 import { HttpClient } from "./http";
 import { inferWorkArrangement, isCanadaJob } from "./location";
 import { htmlToText, normalizeWhitespace } from "./text";
-import { BoardConfig, NormalizedJob, Provider } from "./types";
+import { BoardConfig, NormalizedJob, Provider, WorkArrangement } from "./types";
+
+// LinkedIn and Indeed are not supported: they have no public job API and their terms prohibit scraping.
+
+const REQUISITION_ID_FORMAT = /^[A-Za-z0-9][A-Za-z0-9._\-/]{0,40}$/;
+const PLACEHOLDER_REQUISITION_ID = /^(n\/?a|na|tbd|none|null|0+|-)$/i;
 
 function toIso(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
-  const date = typeof value === "number" ? new Date(value) : new Date(String(value));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+
+  let date: Date;
+
+  if (typeof value === "number") {
+    date = new Date(value);
+  } else {
+    date = new Date(String(value));
+  }
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toISOString();
 }
 
-/** Requisition IDs are only useful for repost detection when they look like real identifiers. */
+// Requisition IDs only help repost detection when they look like real identifiers.
 export function cleanRequisitionId(value: unknown): string | null {
   if (value === null || value === undefined) return null;
+
   const id = String(value).trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._\-/]{0,40}$/.test(id)) return null; // rejects "See Opening ID", blanks
-  if (/^(n\/?a|na|tbd|none|null|0+|-)$/i.test(id)) return null;
+
+  // Rejects blanks and free text such as "See Opening ID".
+  if (!REQUISITION_ID_FORMAT.test(id)) return null;
+  if (PLACEHOLDER_REQUISITION_ID.test(id)) return null;
+
   return id;
 }
 
 function inferEmploymentType(...hints: (string | null | undefined)[]): string | null {
   const text = hints.filter(Boolean).join(" ").toLowerCase();
+
   if (/\bintern(ship)?\b|co-?op\b/.test(text)) return "Internship";
   if (/\bcontract(or)?\b|\btemporary\b|fixed[- ]term/.test(text)) return "Contract";
   if (/\bpart[- ]time\b/.test(text)) return "Part-time";
   if (/\bfull[- ]time\b|\bpermanent\b|fulltime/.test(text)) return "Full-time";
+
   return null;
 }
 
 function countryFromLocations(locations: string[], explicit: string | null): string | null {
   if (explicit) return explicit;
-  return isCanadaJob(locations, null) ? "Canada" : null;
+  if (isCanadaJob(locations, null)) return "Canada";
+
+  return null;
 }
 
-// --- Greenhouse ---------------------------------------------------------------------------------
+function uniqueNonEmpty(values: string[]): string[] {
+  const nonEmpty = values.filter(Boolean);
+  return [...new Set(nonEmpty)];
+}
+
+function workplaceTypeToArrangement(workplaceType: string | null | undefined): WorkArrangement | null {
+  const value = (workplaceType ?? "").toLowerCase();
+
+  if (value === "remote" || value === "hybrid" || value === "onsite") {
+    return value;
+  }
+
+  return null;
+}
 
 interface GreenhouseJob {
   id: number;
@@ -67,43 +85,67 @@ interface GreenhouseJob {
   metadata?: { name?: string; value?: unknown; value_type?: string }[] | null;
 }
 
-function greenhouseSalary(meta: GreenhouseJob["metadata"]) {
-  for (const m of meta ?? []) {
-    if (m.value_type !== "currency_range" || !m.value || typeof m.value !== "object") continue;
-    const v = m.value as { min_value?: string | number; max_value?: string | number; unit?: string };
-    const min = Number(v.min_value);
-    const max = Number(v.max_value);
-    if (Number.isFinite(min) || Number.isFinite(max)) {
-      return {
-        salaryMin: Number.isFinite(min) ? min : null,
-        salaryMax: Number.isFinite(max) ? max : null,
-        salaryCurrency: v.unit ?? null,
-      };
-    }
+interface GreenhouseCurrencyRange {
+  min_value?: string | number;
+  max_value?: string | number;
+  unit?: string;
+}
+
+function greenhouseSalary(metadata: GreenhouseJob["metadata"]) {
+  for (const field of metadata ?? []) {
+    if (field.value_type !== "currency_range") continue;
+    if (!field.value || typeof field.value !== "object") continue;
+
+    const range = field.value as GreenhouseCurrencyRange;
+    const min = Number(range.min_value);
+    const max = Number(range.max_value);
+
+    if (!Number.isFinite(min) && !Number.isFinite(max)) continue;
+
+    return {
+      salaryMin: Number.isFinite(min) ? min : null,
+      salaryMax: Number.isFinite(max) ? max : null,
+      salaryCurrency: range.unit ?? null,
+    };
   }
+
   return { salaryMin: null, salaryMax: null, salaryCurrency: null };
 }
 
 export function normalizeGreenhouse(raw: GreenhouseJob, board: BoardConfig): NormalizedJob {
   const description = htmlToText(raw.content ?? "");
-  const primary = normalizeWhitespace(raw.location?.name ?? "");
+  const primaryLocation = normalizeWhitespace(raw.location?.name ?? "");
+
   const officeLocations = (raw.offices ?? [])
-    .map((o) => normalizeWhitespace(o.location || o.name || ""))
+    .map((office) => normalizeWhitespace(office.location || office.name || ""))
     .filter(Boolean);
-  const locations = [...new Set([primary, ...officeLocations].filter(Boolean))];
+
+  const locations = uniqueNonEmpty([primaryLocation, ...officeLocations]);
+
+  const requisitionId =
+    cleanRequisitionId(raw.requisition_id) ?? cleanRequisitionId(raw.internal_job_id);
+
+  const workArrangement = inferWorkArrangement(
+    primaryLocation,
+    ...officeLocations,
+    description.slice(0, 1500)
+  );
+
+  // updated_at changes on every edit, so only first_published is used as the posting date.
   const postedAt = toIso(raw.first_published);
+
   return {
     provider: "greenhouse",
     boardToken: board.token,
     externalId: String(raw.id),
-    requisitionId: cleanRequisitionId(raw.requisition_id) ?? cleanRequisitionId(raw.internal_job_id),
+    requisitionId,
     title: normalizeWhitespace(raw.title),
     company: board.company || raw.company_name || board.token,
     companyWebsite: board.website ?? null,
-    location: primary || locations[0] || "Unknown",
+    location: primaryLocation || locations[0] || "Unknown",
     locations,
     country: countryFromLocations(locations, null),
-    workArrangement: inferWorkArrangement(primary, ...officeLocations, description.slice(0, 1500)),
+    workArrangement,
     employmentType: inferEmploymentType(raw.title, description.slice(0, 2000)),
     postedAt,
     postedAtSource: postedAt ? "greenhouse.first_published" : null,
@@ -117,12 +159,16 @@ export function normalizeGreenhouse(raw: GreenhouseJob, board: BoardConfig): Nor
   };
 }
 
-// --- Lever --------------------------------------------------------------------------------------
-
 interface LeverPosting {
   id: string;
   text: string;
-  categories?: { commitment?: string; location?: string; team?: string; department?: string; allLocations?: string[] };
+  categories?: {
+    commitment?: string;
+    location?: string;
+    team?: string;
+    department?: string;
+    allLocations?: string[];
+  };
   createdAt?: number;
   country?: string | null;
   workplaceType?: string | null;
@@ -137,17 +183,36 @@ interface LeverPosting {
 
 export function normalizeLever(raw: LeverPosting, board: BoardConfig): NormalizedJob {
   const listText = (raw.lists ?? [])
-    .map((l) => `${l.text ?? ""}\n${htmlToText(l.content ?? "")}`)
+    .map((list) => `${list.text ?? ""}\n${htmlToText(list.content ?? "")}`)
     .join("\n\n");
-  const description = [raw.descriptionPlain ?? htmlToText(raw.description ?? ""), listText, raw.additionalPlain ?? ""]
+
+  const mainDescription = raw.descriptionPlain ?? htmlToText(raw.description ?? "");
+
+  const description = [mainDescription, listText, raw.additionalPlain ?? ""]
     .filter(Boolean)
     .join("\n\n")
     .trim();
-  const primary = normalizeWhitespace(raw.categories?.location ?? "");
-  const locations = [...new Set([primary, ...(raw.categories?.allLocations ?? []).map(normalizeWhitespace)].filter(Boolean))];
-  const country = raw.country === "CA" ? "Canada" : raw.country ? raw.country : null;
-  const wp = (raw.workplaceType ?? "").toLowerCase();
+
+  const primaryLocation = normalizeWhitespace(raw.categories?.location ?? "");
+  const allLocations = (raw.categories?.allLocations ?? []).map(normalizeWhitespace);
+  const locations = uniqueNonEmpty([primaryLocation, ...allLocations]);
+
+  // Lever's country field is an ISO code, so "CA" here does mean Canada.
+  let country: string | null = null;
+
+  if (raw.country === "CA") {
+    country = "Canada";
+  } else if (raw.country) {
+    country = raw.country;
+  }
+
+  const workArrangement =
+    workplaceTypeToArrangement(raw.workplaceType) ??
+    inferWorkArrangement(primaryLocation, description.slice(0, 1500));
+
+  // Lever only exposes createdAt. A posting is published at or after creation, so this errs on the old side.
   const postedAt = toIso(raw.createdAt);
+
   return {
     provider: "lever",
     boardToken: board.token,
@@ -156,11 +221,10 @@ export function normalizeLever(raw: LeverPosting, board: BoardConfig): Normalize
     title: normalizeWhitespace(raw.text),
     company: board.company || board.token,
     companyWebsite: board.website ?? null,
-    location: primary || "Unknown",
+    location: primaryLocation || "Unknown",
     locations,
-    country: country === "Canada" ? "Canada" : countryFromLocations(locations, country),
-    workArrangement:
-      wp === "remote" || wp === "hybrid" || wp === "onsite" ? wp : inferWorkArrangement(primary, description.slice(0, 1500)),
+    country: countryFromLocations(locations, country),
+    workArrangement,
     employmentType: inferEmploymentType(raw.categories?.commitment, raw.text),
     postedAt,
     postedAtSource: postedAt ? "lever.createdAt" : null,
@@ -176,14 +240,28 @@ export function normalizeLever(raw: LeverPosting, board: BoardConfig): Normalize
   };
 }
 
-// --- Ashby --------------------------------------------------------------------------------------
+interface AshbyPostalAddress {
+  addressCountry?: string;
+  addressRegion?: string;
+  addressLocality?: string;
+}
+
+interface AshbyCompensationComponent {
+  compensationType?: string;
+  minValue?: number | null;
+  maxValue?: number | null;
+  currencyCode?: string | null;
+}
 
 interface AshbyJob {
   id: string;
   title: string;
   location?: string;
-  secondaryLocations?: { location?: string; address?: { postalAddress?: { addressCountry?: string } } }[];
-  address?: { postalAddress?: { addressCountry?: string; addressRegion?: string; addressLocality?: string } };
+  secondaryLocations?: {
+    location?: string;
+    address?: { postalAddress?: { addressCountry?: string } };
+  }[];
+  address?: { postalAddress?: AshbyPostalAddress };
   employmentType?: string;
   publishedAt?: string;
   isListed?: boolean;
@@ -194,26 +272,63 @@ interface AshbyJob {
   jobUrl: string;
   applyUrl?: string;
   compensation?: {
-    summaryComponents?: { compensationType?: string; minValue?: number | null; maxValue?: number | null; currencyCode?: string | null }[];
+    summaryComponents?: AshbyCompensationComponent[];
   };
 }
 
+function ashbyCountry(raw: AshbyJob, locations: string[]): string | null {
+  const countries: string[] = [];
+
+  const primaryCountry = raw.address?.postalAddress?.addressCountry;
+  if (primaryCountry) {
+    countries.push(primaryCountry);
+  }
+
+  for (const secondary of raw.secondaryLocations ?? []) {
+    const secondaryCountry = secondary.address?.postalAddress?.addressCountry;
+    if (secondaryCountry) {
+      countries.push(secondaryCountry);
+    }
+  }
+
+  if (countries.some((country) => /canada/i.test(country))) return "Canada";
+  if (countries.length > 0) return countries[0];
+
+  return countryFromLocations(locations, null);
+}
+
+// Ashby sends values like "FullTime".
+function formatAshbyEmploymentType(employmentType: string | undefined): string | null {
+  if (!employmentType) return null;
+
+  const hyphenated = employmentType.replace(/([a-z])([A-Z])/g, "$1-$2");
+  return hyphenated.replace("Full-Time", "Full-time");
+}
+
 export function normalizeAshby(raw: AshbyJob, board: BoardConfig): NormalizedJob {
-  const primary = normalizeWhitespace(raw.location ?? "");
-  const secondary = (raw.secondaryLocations ?? []).map((s) => normalizeWhitespace(s.location ?? "")).filter(Boolean);
-  const locations = [...new Set([primary, ...secondary].filter(Boolean))];
-  const countries = [
-    raw.address?.postalAddress?.addressCountry,
-    ...(raw.secondaryLocations ?? []).map((s) => s.address?.postalAddress?.addressCountry),
-  ].filter(Boolean) as string[];
-  const country = countries.some((c) => /canada/i.test(c)) ? "Canada" : countries[0] ?? countryFromLocations(locations, null);
-  const wp = (raw.workplaceType ?? "").toLowerCase();
-  const salary = raw.compensation?.summaryComponents?.find((c) => c.compensationType === "Salary");
+  const primaryLocation = normalizeWhitespace(raw.location ?? "");
+
+  const secondaryLocations = (raw.secondaryLocations ?? [])
+    .map((secondary) => normalizeWhitespace(secondary.location ?? ""))
+    .filter(Boolean);
+
+  const locations = uniqueNonEmpty([primaryLocation, ...secondaryLocations]);
+  const country = ashbyCountry(raw, locations);
+
+  let workArrangement = workplaceTypeToArrangement(raw.workplaceType);
+
+  if (!workArrangement) {
+    workArrangement = raw.isRemote ? "remote" : inferWorkArrangement(primaryLocation);
+  }
+
+  const salary = raw.compensation?.summaryComponents?.find(
+    (component) => component.compensationType === "Salary"
+  );
+
   const description = raw.descriptionPlain?.trim() || htmlToText(raw.descriptionHtml ?? "");
+  const employmentType = formatAshbyEmploymentType(raw.employmentType);
   const postedAt = toIso(raw.publishedAt);
-  const employment = raw.employmentType
-    ? raw.employmentType.replace(/([a-z])([A-Z])/g, "$1-$2").replace("Full-Time", "Full-time")
-    : null;
+
   return {
     provider: "ashby",
     boardToken: board.token,
@@ -222,12 +337,11 @@ export function normalizeAshby(raw: AshbyJob, board: BoardConfig): NormalizedJob
     title: normalizeWhitespace(raw.title),
     company: board.company || board.token,
     companyWebsite: board.website ?? null,
-    location: primary || "Unknown",
+    location: primaryLocation || "Unknown",
     locations,
     country,
-    workArrangement:
-      wp === "remote" ? "remote" : wp === "hybrid" ? "hybrid" : wp === "onsite" ? "onsite" : raw.isRemote ? "remote" : inferWorkArrangement(primary),
-    employmentType: employment ?? inferEmploymentType(raw.title),
+    workArrangement,
+    employmentType: employmentType ?? inferEmploymentType(raw.title),
     postedAt,
     postedAtSource: postedAt ? "ashby.publishedAt" : null,
     sourceUpdatedAt: null,
@@ -242,29 +356,35 @@ export function normalizeAshby(raw: AshbyJob, board: BoardConfig): NormalizedJob
   };
 }
 
-// --- Fetch --------------------------------------------------------------------------------------
-
 const ENDPOINTS: Record<Provider, (token: string) => string> = {
-  greenhouse: (t) => `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(t)}/jobs?content=true`,
-  lever: (t) => `https://api.lever.co/v0/postings/${encodeURIComponent(t)}?mode=json`,
-  ashby: (t) => `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(t)}?includeCompensation=true`,
+  greenhouse: (token) =>
+    `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(token)}/jobs?content=true`,
+  lever: (token) => `https://api.lever.co/v0/postings/${encodeURIComponent(token)}?mode=json`,
+  ashby: (token) =>
+    `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(token)}?includeCompensation=true`,
 };
 
 export async function fetchBoard(board: BoardConfig, http: HttpClient): Promise<NormalizedJob[]> {
   const url = ENDPOINTS[board.provider](board.token);
   const data = await http.getJson<unknown>(url);
+
   switch (board.provider) {
     case "greenhouse": {
       const jobs = (data as { jobs?: GreenhouseJob[] }).jobs ?? [];
-      return jobs.map((j) => normalizeGreenhouse(j, board));
+      return jobs.map((job) => normalizeGreenhouse(job, board));
     }
+
     case "lever": {
-      if (!Array.isArray(data)) throw new Error(`Lever board "${board.token}" did not return a list`);
-      return (data as LeverPosting[]).map((j) => normalizeLever(j, board));
+      if (!Array.isArray(data)) {
+        throw new Error(`Lever board "${board.token}" did not return a list`);
+      }
+
+      return (data as LeverPosting[]).map((posting) => normalizeLever(posting, board));
     }
+
     case "ashby": {
       const jobs = (data as { jobs?: AshbyJob[] }).jobs ?? [];
-      return jobs.map((j) => normalizeAshby(j, board));
+      return jobs.map((job) => normalizeAshby(job, board));
     }
   }
 }

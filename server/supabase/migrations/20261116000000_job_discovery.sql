@@ -1,13 +1,9 @@
 -- Job discovery, master resume, tailored resumes and application audit trail.
---
--- Additive only: no existing column, row or view is changed or dropped, except that the
--- applications.status allowed-value list is extended with new lifecycle values.
--- Written defensively because the live schema is managed in Supabase, not in this repo:
---   * applications.status may be a Postgres enum or text with a CHECK constraint
---   * applications.id may be uuid or bigint — new FKs copy its actual type
--- Safe to re-run.
+-- Only adds tables and columns, apart from extending the allowed applications.status values.
+-- The live schema is managed in Supabase, so applications.status may be an enum or a CHECK
+-- constraint, and applications.id may be uuid or bigint. Safe to re-run.
 
--- 1. Extend the application lifecycle --------------------------------------------------------------
+-- 1. Application statuses
 DO $$
 DECLARE
   col_type text;
@@ -15,9 +11,9 @@ DECLARE
   con      record;
   v        text;
   all_vals text[] := ARRAY[
-    -- existing values (server/src/types/application.ts)
+    -- existing values
     'SAVED','APPLIED','PHONE_SCREEN','INTERVIEW','TECHNICAL','OFFER','ACCEPTED','REJECTED','WITHDRAWN','GHOSTED',
-    -- legacy value still referenced by the old analytics code
+    -- legacy value used by older analytics code
     'SCREENING',
     -- new lifecycle values
     'DISCOVERED','UNDER_REVIEW','READY_TO_APPLY','ASSESSMENT','FINAL_INTERVIEW','EXPIRED'
@@ -58,7 +54,7 @@ BEGIN
   END IF;
 END $$;
 
--- 2. Master resume (source of truth) ---------------------------------------------------------------
+-- 2. Master resume
 CREATE TABLE IF NOT EXISTS public.master_profiles (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -72,7 +68,7 @@ CREATE TABLE IF NOT EXISTS public.master_profiles (
 CREATE UNIQUE INDEX IF NOT EXISTS master_profiles_one_current
   ON public.master_profiles (user_id) WHERE is_current;
 
--- 3. Discovery runs --------------------------------------------------------------------------------
+-- 3. Discovery runs
 CREATE TABLE IF NOT EXISTS public.discovery_runs (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -91,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.discovery_runs (
 );
 CREATE INDEX IF NOT EXISTS discovery_runs_user_started ON public.discovery_runs (user_id, started_at DESC);
 
--- 4. Discovered jobs -------------------------------------------------------------------------------
+-- 4. Discovered jobs
 CREATE TABLE IF NOT EXISTS public.discovered_jobs (
   id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -108,22 +104,22 @@ CREATE TABLE IF NOT EXISTS public.discovered_jobs (
   country                  text,
   work_arrangement         text NOT NULL DEFAULT 'unknown' CHECK (work_arrangement IN ('remote','hybrid','onsite','unknown')),
   employment_type          text,
-  posted_at                timestamptz,        -- original publish time; NULL = unverified
+  posted_at                timestamptz,        -- original publish time, NULL if unverified
   posted_at_source         text,               -- which provider field it came from
-  source_updated_at        timestamptz,        -- provider last-modified; never used as posting date
+  source_updated_at        timestamptz,        -- provider last-modified, not used as posting date
   first_seen_at            timestamptz NOT NULL DEFAULT now(),
   last_seen_at             timestamptz NOT NULL DEFAULT now(),
   last_verified_at         timestamptz NOT NULL DEFAULT now(),
   salary_min               numeric,
   salary_max               numeric,
   salary_currency          text,
-  description              text,               -- exact text that was scored (kept for tailoring)
+  description              text,               -- text that was scored, kept for tailoring
   source_url               text NOT NULL,
   apply_url                text NOT NULL,
   canonical_url            text NOT NULL,
   canonical_apply_url      text,
   fingerprint              text NOT NULL,
-  applicant_count          integer,            -- NULL = unknown; public APIs never expose it
+  applicant_count          integer,            -- public APIs do not expose it
   freshness_status         text NOT NULL CHECK (freshness_status IN ('fresh','stale','unverified','invalid')),
   age_hours_at_discovery   numeric,
   match_score              integer CHECK (match_score BETWEEN 0 AND 100),
@@ -145,7 +141,7 @@ CREATE INDEX IF NOT EXISTS discovered_jobs_fingerprint ON public.discovered_jobs
 CREATE INDEX IF NOT EXISTS discovered_jobs_url ON public.discovered_jobs (user_id, canonical_url);
 CREATE INDEX IF NOT EXISTS discovered_jobs_shortlist ON public.discovered_jobs (user_id, shortlisted, posted_at DESC);
 
--- application_id uses whatever type applications.id actually has.
+-- application_id copies the type of applications.id.
 DO $$
 DECLARE id_type text;
 BEGIN
@@ -159,7 +155,7 @@ BEGIN
   END IF;
 END $$;
 
--- 5. Tailored resumes (versioned; never overwritten) ------------------------------------------------
+-- 5. Tailored resumes (each version is a new row)
 CREATE TABLE IF NOT EXISTS public.tailored_resumes (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -176,7 +172,7 @@ CREATE TABLE IF NOT EXISTS public.tailored_resumes (
   UNIQUE (discovered_job_id, version)
 );
 
--- 6. Application audit trail ------------------------------------------------------------------------
+-- 6. Application audit trail
 DO $$
 DECLARE id_type text;
 BEGIN
@@ -199,7 +195,7 @@ BEGIN
   END IF;
 END $$;
 
--- 7. Row-level security (the API uses the service role; these protect direct client access) ---------
+-- 7. Row-level security. The API uses the service role, so these only cover direct client access.
 ALTER TABLE public.master_profiles    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.discovery_runs     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.discovered_jobs    ENABLE ROW LEVEL SECURITY;
@@ -216,9 +212,8 @@ BEGIN
   END LOOP;
 END $$;
 
--- 8. Promote a discovered job into the tracker atomically --------------------------------------------
--- Idempotent: returns the existing application if the job is already linked, and links (instead of
--- duplicating) an existing tracker row with the same job URL.
+-- 8. Promote a discovered job into the tracker
+-- Returns the linked application if there is one, and reuses a tracker row with the same job URL.
 CREATE OR REPLACE FUNCTION public.promote_discovered_job(p_job_id uuid, p_user_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql

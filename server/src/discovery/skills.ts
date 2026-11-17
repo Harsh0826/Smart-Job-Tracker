@@ -1,11 +1,3 @@
-/**
- * Skill taxonomy + extraction.
- *
- * Deliberately small and explicit: every canonical skill lists the aliases that count as a mention.
- * Matching is case-insensitive with custom boundaries so "Java" does not match "JavaScript" and
- * "Go" only matches as a standalone language mention.
- */
-
 export type SkillCategory =
   | "language"
   | "frontend"
@@ -95,7 +87,17 @@ const SKILLS: SkillDef[] = [
   { name: "Docker", category: "devops", aliases: ["docker", "containers", "containerization"] },
   { name: "Kubernetes", category: "devops", aliases: ["kubernetes", "k8s", "eks", "gke", "aks"] },
   { name: "Terraform", category: "devops", aliases: ["terraform"] },
-  { name: "CI/CD", category: "devops", aliases: ["ci/cd", "ci cd", "continuous integration", "continuous delivery", "continuous deployment"] },
+  {
+    name: "CI/CD",
+    category: "devops",
+    aliases: [
+      "ci/cd",
+      "ci cd",
+      "continuous integration",
+      "continuous delivery",
+      "continuous deployment",
+    ],
+  },
   { name: "GitHub Actions", category: "devops", aliases: ["github actions"] },
   { name: "Jenkins", category: "devops", aliases: ["jenkins"] },
   { name: "Git", category: "devops", aliases: ["git", "github", "gitlab"] },
@@ -105,12 +107,35 @@ const SKILLS: SkillDef[] = [
   { name: "Datadog", category: "devops", aliases: ["datadog"] },
 
   // AI
-  { name: "OpenAI API", category: "ai", aliases: ["openai", "openai api", "gpt-4", "gpt-4o", "chatgpt"] },
-  { name: "LLMs", category: "ai", aliases: ["llm", "llms", "large language model", "large language models", "generative ai", "genai"] },
+  {
+    name: "OpenAI API",
+    category: "ai",
+    aliases: ["openai", "openai api", "gpt-4", "gpt-4o", "chatgpt"],
+  },
+  {
+    name: "LLMs",
+    category: "ai",
+    aliases: [
+      "llm",
+      "llms",
+      "large language model",
+      "large language models",
+      "generative ai",
+      "genai",
+    ],
+  },
   { name: "LangChain", category: "ai", aliases: ["langchain", "langgraph"] },
-  { name: "RAG", category: "ai", aliases: ["rag", "retrieval augmented generation", "retrieval-augmented generation"] },
+  {
+    name: "RAG",
+    category: "ai",
+    aliases: ["rag", "retrieval augmented generation", "retrieval-augmented generation"],
+  },
   { name: "Prompt Engineering", category: "ai", aliases: ["prompt engineering"] },
-  { name: "Vector Databases", category: "ai", aliases: ["vector database", "vector databases", "pgvector", "pinecone", "weaviate"] },
+  {
+    name: "Vector Databases",
+    category: "ai",
+    aliases: ["vector database", "vector databases", "pgvector", "pinecone", "weaviate"],
+  },
   { name: "Machine Learning", category: "ai", aliases: ["machine learning", "ml"] },
   { name: "PyTorch", category: "ai", aliases: ["pytorch"] },
   { name: "TensorFlow", category: "ai", aliases: ["tensorflow"] },
@@ -120,78 +145,132 @@ const SKILLS: SkillDef[] = [
   { name: "Cypress", category: "testing", aliases: ["cypress"] },
   { name: "Playwright", category: "testing", aliases: ["playwright"] },
   { name: "pytest", category: "testing", aliases: ["pytest"] },
-  { name: "Unit Testing", category: "testing", aliases: ["unit testing", "unit tests", "test-driven development", "tdd"] },
+  {
+    name: "Unit Testing",
+    category: "testing",
+    aliases: ["unit testing", "unit tests", "test-driven development", "tdd"],
+  },
 
   // Practices
   { name: "Agile", category: "practice", aliases: ["agile", "scrum", "kanban"] },
   { name: "System Design", category: "practice", aliases: ["system design", "distributed systems"] },
-  { name: "Data Structures & Algorithms", category: "practice", aliases: ["data structures", "algorithms"] },
+  {
+    name: "Data Structures & Algorithms",
+    category: "practice",
+    aliases: ["data structures", "algorithms"],
+  },
 ];
 
-const SKILL_BY_NAME = new Map(SKILLS.map((s) => [s.name.toLowerCase(), s]));
+const SKILL_BY_NAME = new Map(SKILLS.map((skill) => [skill.name.toLowerCase(), skill]));
+
+// These aliases are also ordinary English words, so they only count when another tech skill is nearby.
+const AMBIGUOUS_ALIASES = new Set([
+  "express",
+  "spring",
+  "swift",
+  "rust",
+  "node",
+  "rest",
+  "lambda",
+  "containers",
+  "ml",
+  "rag",
+  "agile",
+  "kanban",
+  "rails",
+  "snowflake",
+  "unix",
+]);
+
+const NEIGHBOUR_DISTANCE = 60;
+
+interface AliasPattern {
+  skill: SkillDef;
+  alias: string;
+  ambiguous: boolean;
+  globalPattern: RegExp;
+  pattern: RegExp;
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Boundaries: a mention must not be glued to letters/digits/+/#. A trailing "." is allowed so
- * "Node." at a sentence end matches, but "node.js" is handled by its own alias.
- */
-/** Aliases that are ordinary English words; only count them when another tech skill is nearby. */
-const AMBIGUOUS_ALIASES = new Set([
-  "express", "spring", "swift", "rust", "node", "rest", "lambda", "containers", "ml", "rag",
-  "agile", "kanban", "rails", "snowflake", "unix",
-]);
+// A mention cannot touch letters, digits, "+" or "#", so "Java" does not match "JavaScript".
+// A trailing "." is allowed so "Node." at the end of a sentence still matches.
+function buildAliasRegex(alias: string, flags: string): RegExp {
+  const escaped = escapeRegex(alias);
+  return new RegExp(`(?<![a-z0-9+#.])${escaped}(?![a-z0-9+#]|\\.[a-z])`, flags);
+}
 
-const ALIAS_PATTERNS: { skill: SkillDef; alias: string; ambiguous: boolean; re: RegExp; test: RegExp }[] =
-  SKILLS.flatMap((skill) =>
-    skill.aliases.map((alias) => ({
-      skill,
-      alias,
-      ambiguous: AMBIGUOUS_ALIASES.has(alias),
-      re: new RegExp(`(?<![a-z0-9+#.])${escapeRegex(alias)}(?![a-z0-9+#]|\\.[a-z])`, "gi"),
-      test: new RegExp(`(?<![a-z0-9+#.])${escapeRegex(alias)}(?![a-z0-9+#]|\\.[a-z])`, "i"),
-    }))
-  );
+function buildAliasPatterns(): AliasPattern[] {
+  const patterns: AliasPattern[] = [];
+
+  for (const skill of SKILLS) {
+    for (const alias of skill.aliases) {
+      patterns.push({
+        skill,
+        alias,
+        ambiguous: AMBIGUOUS_ALIASES.has(alias),
+        globalPattern: buildAliasRegex(alias, "gi"),
+        pattern: buildAliasRegex(alias, "i"),
+      });
+    }
+  }
+
+  return patterns;
+}
+
+const ALIAS_PATTERNS = buildAliasPatterns();
 
 export function extractSkills(text: string): string[] {
   const found = new Set<string>();
-  for (const { skill, ambiguous, re } of ALIAS_PATTERNS) {
+
+  for (const { skill, ambiguous, globalPattern } of ALIAS_PATTERNS) {
     if (found.has(skill.name)) continue;
-    re.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(text)) !== null) {
+
+    globalPattern.lastIndex = 0;
+    let match = globalPattern.exec(text);
+
+    while (match !== null) {
       if (!ambiguous || hasTechNeighbour(text, match.index, match[0].length)) {
         found.add(skill.name);
         break;
       }
+
+      match = globalPattern.exec(text);
     }
   }
+
   return [...found];
 }
 
-/** True when an unambiguous skill alias appears within ~60 characters of the mention. */
 function hasTechNeighbour(text: string, index: number, length: number): boolean {
-  const before = text.slice(Math.max(0, index - 60), index);
-  const after = text.slice(index + length, index + length + 60);
-  const window = `${before} | ${after}`;
-  return ALIAS_PATTERNS.some(({ ambiguous, test }) => !ambiguous && test.test(window));
+  const before = text.slice(Math.max(0, index - NEIGHBOUR_DISTANCE), index);
+  const after = text.slice(index + length, index + length + NEIGHBOUR_DISTANCE);
+  const nearbyText = `${before} | ${after}`;
+
+  return ALIAS_PATTERNS.some((entry) => !entry.ambiguous && entry.pattern.test(nearbyText));
 }
 
 export function canonicalSkill(name: string): string | null {
   const direct = SKILL_BY_NAME.get(name.trim().toLowerCase());
   if (direct) return direct.name;
+
   const extracted = extractSkills(name);
-  return extracted.length === 1 ? extracted[0] : null;
+  if (extracted.length === 1) return extracted[0];
+
+  return null;
 }
 
 export function skillCategory(name: string): SkillCategory | null {
-  return SKILL_BY_NAME.get(name.toLowerCase())?.category ?? null;
+  const skill = SKILL_BY_NAME.get(name.toLowerCase());
+  if (!skill) return null;
+
+  return skill.category;
 }
 
-/** Skills implied by a more specific skill (e.g. knowing Amazon S3 implies AWS exposure). */
-const IMPLIES: Record<string, string[]> = {
+const IMPLIED_SKILLS: Record<string, string[]> = {
   "Amazon S3": ["AWS"],
   "AWS Lambda": ["AWS", "Serverless"],
   "Amazon EC2": ["AWS"],
@@ -207,12 +286,19 @@ const IMPLIES: Record<string, string[]> = {
 };
 
 export function expandImpliedSkills(skills: Iterable<string>): Set<string> {
-  const out = new Set<string>(skills);
-  for (const s of [...out]) for (const implied of IMPLIES[s] ?? []) out.add(implied);
-  return out;
-}
+  const expanded = new Set<string>(skills);
+  const original = [...expanded];
 
-// --- Requirement sectioning -------------------------------------------------------------------
+  for (const skill of original) {
+    const implied = IMPLIED_SKILLS[skill] ?? [];
+
+    for (const impliedSkill of implied) {
+      expanded.add(impliedSkill);
+    }
+  }
+
+  return expanded;
+}
 
 const PREFERRED_HEADING =
   /(nice[- ]to[- ]have|bonus|preferred|pluses?|a plus|good to have|desirable|extra credit|asset)/i;
@@ -220,6 +306,9 @@ const REQUIRED_HEADING =
   /(requirements?|qualifications?|must[- ]haves?|what you(?:'|’)?ll (?:need|bring)|what we(?:'|’)?re looking for|who you are|about you|you have|skills|experience)/i;
 const RESPONSIBILITY_HEADING =
   /(responsibilit|what you(?:'|’)?ll do|the role|day[- ]to[- ]day|in this role|your impact|what you will do|you will)/i;
+const OTHER_HEADING =
+  /^(about us|about the company|benefits|perks|what we offer|compensation|our values|equal opportunity)/i;
+const INLINE_PREFERRED = /\b(nice to have|is a plus|a bonus|preferred|bonus points|an asset)\b/i;
 
 export interface JobSections {
   required: string;
@@ -228,11 +317,23 @@ export interface JobSections {
   other: string;
 }
 
-/**
- * Split description text into sections by heading-like lines. Lines that mention "preferred" /
- * "bonus" inline (e.g. "Experience with Go is a plus") are routed to preferred even inside a
- * requirements block.
- */
+function isHeadingLine(line: string): boolean {
+  if (line.length > 80) return false;
+  if (/[.;]$/.test(line)) return false;
+
+  return line.split(/\s+/).length <= 10;
+}
+
+function headingSection(line: string): keyof JobSections | null {
+  if (PREFERRED_HEADING.test(line)) return "preferred";
+  if (RESPONSIBILITY_HEADING.test(line)) return "responsibilities";
+  if (REQUIRED_HEADING.test(line)) return "required";
+  if (OTHER_HEADING.test(line)) return "other";
+
+  return null;
+}
+
+// A line like "Experience with Go is a plus" goes to preferred even inside a requirements block.
 export function splitSections(text: string): JobSections {
   const sections: JobSections = { required: "", preferred: "", responsibilities: "", other: "" };
   let current: keyof JobSections = "other";
@@ -240,20 +341,24 @@ export function splitSections(text: string): JobSections {
   for (const rawLine of text.split(/\n+/)) {
     const line = rawLine.trim();
     if (!line) continue;
-    const isHeading = line.length <= 80 && !/[.;]$/.test(line) && line.split(/\s+/).length <= 10;
-    if (isHeading) {
-      if (PREFERRED_HEADING.test(line)) current = "preferred";
-      else if (RESPONSIBILITY_HEADING.test(line)) current = "responsibilities";
-      else if (REQUIRED_HEADING.test(line)) current = "required";
-      else if (/^(about us|about the company|benefits|perks|what we offer|compensation|our values|equal opportunity)/i.test(line))
-        current = "other";
+
+    if (isHeadingLine(line)) {
+      const heading = headingSection(line);
+
+      if (heading) {
+        current = heading;
+      }
     }
-    const target: keyof JobSections =
-      current !== "preferred" && /\b(nice to have|is a plus|a bonus|preferred|bonus points|an asset)\b/i.test(line)
-        ? "preferred"
-        : current;
+
+    let target: keyof JobSections = current;
+
+    if (current !== "preferred" && INLINE_PREFERRED.test(line)) {
+      target = "preferred";
+    }
+
     sections[target] += line + "\n";
   }
+
   return sections;
 }
 
@@ -267,9 +372,15 @@ export function extractRequirementSkills(text: string): RequirementSkills {
   const preferred = new Set(extractSkills(sections.preferred));
   let required = new Set(extractSkills(sections.required + "\n" + sections.responsibilities));
 
-  // No recognisable requirements section: fall back to the whole posting as required.
-  if (required.size === 0) required = new Set(extractSkills(text).filter((s) => !preferred.has(s)));
+  // No recognisable requirements section, so treat the whole posting as required.
+  if (required.size === 0) {
+    const allSkills = extractSkills(text);
+    required = new Set(allSkills.filter((skill) => !preferred.has(skill)));
+  }
 
-  for (const s of required) preferred.delete(s);
+  for (const skill of required) {
+    preferred.delete(skill);
+  }
+
   return { required: [...required], preferred: [...preferred] };
 }

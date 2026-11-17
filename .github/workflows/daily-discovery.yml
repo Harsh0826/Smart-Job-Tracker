@@ -1,10 +1,9 @@
-# Daily job discovery at 08:00 America/Toronto, independent of any browser or always-on server.
-# GitHub cron is UTC only, so two triggers cover EST (13:00 UTC) and EDT (12:00 UTC); the first step
-# skips whichever one is not 08:xx in Toronto. Runs are idempotent, so an occasional double run is harmless.
+# Daily job discovery at 08:00 America/Toronto.
+# GitHub cron runs in UTC, so one trigger covers EST (13:00 UTC) and one covers EDT (12:00 UTC).
+# The first step skips whichever one is not 08:xx in Toronto.
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DISCOVERY_USER_ID
-# The job is skipped (not failed) until they are set.
+# Needs the repository secrets SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and DISCOVERY_USER_ID.
+# The job is skipped until they are set.
 name: Daily job discovery
 
 on:
@@ -65,7 +64,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCOVERY_USER_ID: ${{ secrets.DISCOVERY_USER_ID }}
-          # config/env.ts requires these at import time; discovery does not use them.
+          # config/env.ts requires these on import, but discovery does not use them.
           AWS_REGION: ca-central-1
           AWS_S3_RESUME_BUCKET: unused-by-discovery
           OPENAI_API_KEY: unused-by-discovery

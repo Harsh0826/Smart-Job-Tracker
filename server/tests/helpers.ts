@@ -3,8 +3,10 @@ import { CandidateProfile, NormalizedJob } from "../src/discovery/types";
 
 export const NOW = new Date("2026-11-16T13:00:00.000Z"); // 08:00 America/Toronto
 
-export function hoursAgo(h: number, now = NOW): string {
-  return new Date(now.getTime() - h * 3_600_000).toISOString();
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+export function hoursAgo(hours: number, now = NOW): string {
+  return new Date(now.getTime() - hours * MS_PER_HOUR).toISOString();
 }
 
 export const FULLSTACK_JD = `About the role
@@ -56,10 +58,11 @@ export function job(overrides: Partial<NormalizedJob> = {}): NormalizedJob {
   };
 }
 
-/** A fictional test resume — not the user's. */
+// Fictional resume used only by the tests.
 export const TEST_MASTER: MasterProfile = {
   contact: { name: "Test Candidate" },
-  summary: "Full-stack developer building web applications with React and Node.js.",
+  summary:
+    "Full-stack developer building web applications with React and Node.js.",
   experiences: [
     {
       id: "e1",
@@ -68,15 +71,38 @@ export const TEST_MASTER: MasterProfile = {
       start: "2024-01",
       end: "2025-12",
       bullets: [
-        { id: "e1.b1", text: "Built REST APIs with Node.js, Express and PostgreSQL for an internal platform" },
-        { id: "e1.b2", text: "Developed React and TypeScript user interfaces and wrote unit tests with Jest" },
-        { id: "e1.b3", text: "Integrated the OpenAI API and stored documents in Amazon S3 on AWS" },
-        { id: "e1.b4", text: "Implemented JWT authentication and participated in code reviews" },
+        {
+          id: "e1.b1",
+          text: "Built REST APIs with Node.js, Express and PostgreSQL for an internal platform",
+        },
+        {
+          id: "e1.b2",
+          text: "Developed React and TypeScript user interfaces and wrote unit tests with Jest",
+        },
+        {
+          id: "e1.b3",
+          text: "Integrated the OpenAI API and stored documents in Amazon S3 on AWS",
+        },
+        {
+          id: "e1.b4",
+          text: "Implemented JWT authentication and participated in code reviews",
+        },
       ],
     },
   ],
   education: [],
-  skills: ["JavaScript", "TypeScript", "Python", "React", "Node.js", "PostgreSQL", "SQL", "AWS", "REST APIs", "JWT"],
+  skills: [
+    "JavaScript",
+    "TypeScript",
+    "Python",
+    "React",
+    "Node.js",
+    "PostgreSQL",
+    "SQL",
+    "AWS",
+    "REST APIs",
+    "JWT",
+  ],
   certifications: [],
 };
 

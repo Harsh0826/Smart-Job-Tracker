@@ -87,8 +87,7 @@ export async function updateApplication(
   userId: string,
   updates: UpdateApplicationInput
 ) {
-  // Whitelist: the request body used to be spread straight into the update, so a client could
-  // overwrite user_id, id, deleted_at or created_at.
+  // Only whitelisted fields are copied, so a client cannot overwrite user_id, id or deleted_at.
   const payload: Record<string, unknown> = {};
 
   for (const key of UPDATABLE_FIELDS) {
@@ -98,8 +97,10 @@ export async function updateApplication(
     }
   }
 
-  if (payload.status !== undefined && !APPLICATION_STATUSES.includes(payload.status as ApplicationStatus)) {
-    throw new ApiError(400, `Invalid status "${String(payload.status)}"`);
+  const status = payload.status;
+
+  if (status !== undefined && !APPLICATION_STATUSES.includes(status as ApplicationStatus)) {
+    throw new ApiError(400, `Invalid status "${String(status)}"`);
   }
 
   if (Object.keys(payload).length === 0) {

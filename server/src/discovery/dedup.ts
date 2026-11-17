@@ -2,18 +2,34 @@ import { createHash } from "node:crypto";
 import { NormalizedJob, Provider } from "./types";
 
 const TRACKING_PARAMS = /^(utm_|gh_src$|source$|src$|ref$|lever-source|lever-origin|ashby_)/i;
+const MS_PER_HOUR = 3_600_000;
 
-/** Lowercased host, no fragment, no tracking params, no trailing slash. Keeps job-identifying params (e.g. gh_jid). */
+// Strips tracking params but keeps the ones that identify the job, such as gh_jid.
 export function canonicalUrl(url: string): string {
   try {
-    const u = new URL(url.trim());
-    u.hash = "";
-    u.hostname = u.hostname.toLowerCase().replace(/^www\./, "");
-    for (const key of [...u.searchParams.keys()]) if (TRACKING_PARAMS.test(key)) u.searchParams.delete(key);
-    u.searchParams.sort();
-    const path = u.pathname.replace(/\/+$/, "") || "/";
-    const query = u.searchParams.toString();
-    return `${u.protocol}//${u.host}${path}${query ? `?${query}` : ""}`;
+    const parsed = new URL(url.trim());
+    parsed.hash = "";
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+
+    const keys = [...parsed.searchParams.keys()];
+
+    for (const key of keys) {
+      if (TRACKING_PARAMS.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    }
+
+    parsed.searchParams.sort();
+
+    const path = parsed.pathname.replace(/\/+$/, "") || "/";
+    const query = parsed.searchParams.toString();
+    const base = `${parsed.protocol}//${parsed.host}${path}`;
+
+    if (!query) {
+      return base;
+    }
+
+    return `${base}?${query}`;
   } catch {
     return url.trim().toLowerCase();
   }
@@ -30,23 +46,34 @@ export function normalizeCompany(name: string): string {
 export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
-    .replace(/\(.*?\)|\[.*?\]/g, " ") // req ids, locations in brackets
+    // Drop bracketed text such as requisition IDs or locations.
+    .replace(/\(.*?\)|\[.*?\]/g, " ")
     .replace(/\bsr\.?\b/g, "senior")
     .replace(/\bjr\.?\b/g, "junior")
     .replace(/\bswe\b/g, "software engineer")
     .replace(/\bdev\b/g, "developer")
-    .replace(/\s[-–—|,]\s.*$/, "") // trailing " - Toronto" / " | Remote"
+    // Drop a trailing suffix such as " - Toronto" or " | Remote".
+    .replace(/\s[-–—|,]\s.*$/, "")
     .replace(/[^a-z0-9+#]+/g, " ")
     .trim();
 }
 
 function primaryCity(location: string): string {
-  return location.split(/[,;/|]/)[0].toLowerCase().replace(/[^a-z]+/g, " ").trim();
+  const firstPart = location.split(/[,;/|]/)[0];
+
+  return firstPart
+    .toLowerCase()
+    .replace(/[^a-z]+/g, " ")
+    .trim();
 }
 
-/** Same company + same normalised title + same primary city => the same opening. */
+// Same company, normalised title and primary city means the same opening.
 export function jobFingerprint(job: Pick<NormalizedJob, "company" | "title" | "location">): string {
-  const key = `${normalizeCompany(job.company)}|${normalizeTitle(job.title)}|${primaryCity(job.location)}`;
+  const company = normalizeCompany(job.company);
+  const title = normalizeTitle(job.title);
+  const city = primaryCity(job.location);
+  const key = `${company}|${title}|${city}`;
+
   return createHash("sha1").update(key).digest("hex");
 }
 
@@ -70,13 +97,6 @@ export interface DuplicateMatch {
   detail: string;
 }
 
-/**
- * Classify a job against what we already know.
- *  - same_posting: identical provider+externalId or identical URL (already tracked — update, don't insert)
- *  - repost: same requisition, or same fingerprint first seen before the freshness window, under a
- *            new posting ID — an old opening that looks new
- *  - cross_source_duplicate: same fingerprint seen recently (e.g. listed on two boards)
- */
 export function findDuplicate(
   job: NormalizedJob,
   known: KnownJob[],
@@ -85,36 +105,61 @@ export function findDuplicate(
 ): DuplicateMatch | null {
   const url = canonicalUrl(job.sourceUrl);
   const applyUrl = canonicalUrl(job.applyUrl);
-  const fp = jobFingerprint(job);
+  const fingerprint = jobFingerprint(job);
 
-  for (const k of known) {
-    if (k.provider === job.provider && k.externalId === job.externalId) {
-      return { kind: "same_posting", existingId: k.id, detail: "Same provider posting ID" };
+  // A job we already track is updated in place, not inserted again.
+  for (const existing of known) {
+    if (existing.provider === job.provider && existing.externalId === job.externalId) {
+      return { kind: "same_posting", existingId: existing.id, detail: "Same provider posting ID" };
     }
-    if (k.canonicalUrl === url || (k.canonicalApplyUrl && k.canonicalApplyUrl === applyUrl)) {
-      return { kind: "same_posting", existingId: k.id, detail: "Same posting URL" };
+
+    const sameUrl = existing.canonicalUrl === url;
+    const sameApplyUrl = Boolean(existing.canonicalApplyUrl) && existing.canonicalApplyUrl === applyUrl;
+
+    if (sameUrl || sameApplyUrl) {
+      return { kind: "same_posting", existingId: existing.id, detail: "Same posting URL" };
     }
   }
 
-  for (const k of known) {
-    if (job.requisitionId && k.requisitionId === job.requisitionId && k.provider === job.provider) {
-      return { kind: "repost", existingId: k.id, detail: `Requisition ${job.requisitionId} was already posted` };
+  if (job.requisitionId) {
+    for (const existing of known) {
+      if (existing.requisitionId === job.requisitionId && existing.provider === job.provider) {
+        return {
+          kind: "repost",
+          existingId: existing.id,
+          detail: `Requisition ${job.requisitionId} was already posted`,
+        };
+      }
     }
   }
 
-  for (const k of known) {
-    if (k.fingerprint !== fp) continue;
-    const firstSeenHours = (now.getTime() - new Date(k.firstSeenAt).getTime()) / 3_600_000;
-    const earlierPost = k.postedAt && job.postedAt && new Date(k.postedAt) < new Date(job.postedAt);
-    if (firstSeenHours > windowHours || earlierPost) {
+  for (const existing of known) {
+    if (existing.fingerprint !== fingerprint) continue;
+
+    const firstSeenHours = (now.getTime() - new Date(existing.firstSeenAt).getTime()) / MS_PER_HOUR;
+
+    let postedEarlier = false;
+    if (existing.postedAt && job.postedAt) {
+      postedEarlier = new Date(existing.postedAt) < new Date(job.postedAt);
+    }
+
+    // Seen before the window, or posted earlier, means an old opening under a new posting ID.
+    if (firstSeenHours > windowHours || postedEarlier) {
       return {
         kind: "repost",
-        existingId: k.id,
+        existingId: existing.id,
         detail: `Same company/title/location first seen ${Math.round(firstSeenHours)}h ago under another posting ID`,
       };
     }
-    return { kind: "cross_source_duplicate", existingId: k.id, detail: "Same company/title/location already captured" };
+
+    // Seen recently, so it is most likely the same job listed on another board.
+    return {
+      kind: "cross_source_duplicate",
+      existingId: existing.id,
+      detail: "Same company/title/location already captured",
+    };
   }
+
   return null;
 }
 

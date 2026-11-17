@@ -11,7 +11,10 @@ export async function getOverviewAnalyticsHandler(
   next: NextFunction
 ) {
   try {
-    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const result = await getOverviewAnalytics(req.user.id);
     return res.status(200).json(result);
   } catch (error) {
@@ -25,7 +28,10 @@ export async function getStatusDistributionHandler(
   next: NextFunction
 ) {
   try {
-    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const result = await getStatusDistribution(req.user.id);
     return res.status(200).json(result);
   } catch (error) {
