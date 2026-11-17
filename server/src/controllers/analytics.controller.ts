@@ -1,16 +1,18 @@
-import { Request, Response, NextFunction } from "express";
+import { NextFunction, Response } from "express";
+import { AuthRequest } from "../middleware/auth";
 import {
   getOverviewAnalytics,
   getStatusDistribution,
 } from "../services/analytics.service";
 
 export async function getOverviewAnalyticsHandler(
-  _req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const result = await getOverviewAnalytics();
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    const result = await getOverviewAnalytics(req.user.id);
     return res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -18,12 +20,13 @@ export async function getOverviewAnalyticsHandler(
 }
 
 export async function getStatusDistributionHandler(
-  _req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const result = await getStatusDistribution();
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    const result = await getStatusDistribution(req.user.id);
     return res.status(200).json(result);
   } catch (error) {
     next(error);

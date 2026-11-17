@@ -7,6 +7,7 @@ export interface AnalyticsOverview {
   successRate: number;
   rejectionRate: number;
   responseRate: number;
+  preApplication?: number;
   APPLIED: number;
   SCREENING: number;
   INTERVIEW: number;

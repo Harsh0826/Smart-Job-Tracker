@@ -5,6 +5,8 @@ import analyticsRoutes from "./routes/analyticsRoute";
 import resumeRoutes from "./routes/resumeRoute";
 import { errorHandler } from "./middleware/erroHandler";
 import aiAnalysisRoutes from "./routes/aiAnalysisRoute";
+import { discoveryRouter, profileRouter } from "./routes/discoveryRoute";
+import { rateLimit } from "./middleware/rateLimit";
 
 const app = express();
 
@@ -26,17 +28,23 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "512kb" }));
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({ message: "Server is running" });
 });
-app.use("/api/auth", require("./routes/authRoute").default);
+app.use(
+  "/api/auth",
+  rateLimit({ windowMs: 15 * 60_000, max: 20, name: "authentication" }),
+  require("./routes/authRoute").default
+);
 
 app.use("/api/applications", applicationRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/resumes", resumeRoutes);
 app.use("/api/ai", aiAnalysisRoutes);
+app.use("/api/discovery", discoveryRouter);
+app.use("/api/profile", profileRouter);
 app.use(errorHandler);
 
 export default app;

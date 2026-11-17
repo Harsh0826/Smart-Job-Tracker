@@ -1,8 +1,28 @@
 import { supabase } from "../config/supabase";
 import {
+  APPLICATION_STATUSES,
+  ApplicationStatus,
   CreateApplicationInput,
   UpdateApplicationInput,
 } from "../types/application";
+import { ApiError } from "../utils/apiError";
+
+const UPDATABLE_FIELDS = [
+  "resume_id",
+  "company",
+  "role",
+  "job_description",
+  "job_url",
+  "source",
+  "status",
+  "applied_date",
+  "follow_up_date",
+  "salary_min",
+  "salary_max",
+  "contact_name",
+  "contact_email",
+  "notes",
+] as const;
 
 const TABLE = "applications";
 const ACTIVE_VIEW = "active_applications";
@@ -67,12 +87,23 @@ export async function updateApplication(
   userId: string,
   updates: UpdateApplicationInput
 ) {
+  // Whitelist: the request body used to be spread straight into the update, so a client could
+  // overwrite user_id, id, deleted_at or created_at.
   const payload: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(updates)) {
+  for (const key of UPDATABLE_FIELDS) {
+    const value = (updates as Record<string, unknown>)[key];
     if (value !== undefined) {
       payload[key] = value;
     }
+  }
+
+  if (payload.status !== undefined && !APPLICATION_STATUSES.includes(payload.status as ApplicationStatus)) {
+    throw new ApiError(400, `Invalid status "${String(payload.status)}"`);
+  }
+
+  if (Object.keys(payload).length === 0) {
+    throw new ApiError(400, "No updatable fields provided");
   }
 
   const { data, error } = await supabase

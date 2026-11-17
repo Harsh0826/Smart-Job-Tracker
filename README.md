@@ -38,6 +38,18 @@ A full-stack web application that helps users track job applications, upload res
 
 ---
 
+### 🔎 Job Discovery (`server/src/discovery/`)
+- Pulls jobs **posted in the last 24 hours** from 62 verified Greenhouse / Lever / Ashby employer boards with Canadian roles
+- Strict freshness: uses each board's original publish time; unknown dates are rejected, never guessed
+- Rejects evergreen listings, reposts and cross-board duplicates
+- Transparent 0–100 match score against your Master Resume (skills 35 · experience 20 · responsibilities 20 · role 15 · location 10); only 70+ is shortlisted
+- Flags citizenship / clearance / sponsorship wording for you to check against your work permit
+- Saves the top matches to the tracker as **Discovered**; runs daily at 08:00 Toronto time or on demand
+
+Setup, API and scheduling: [docs/JOB_DISCOVERY.md](docs/JOB_DISCOVERY.md) · Audit & roadmap: [docs/AUDIT_AND_ROADMAP.md](docs/AUDIT_AND_ROADMAP.md)
+
+---
+
 ### 🧭 AI Career Copilot (`career-copilot/`)
 A multi-agent coach that turns your resume into a tailored, ATS-ready application without inventing anything:
 - **Tailor & verify:** rewrites your resume for a job; a Truthfulness Verifier blocks any claim your profile can't back up
@@ -57,6 +69,9 @@ Setup and details: [career-copilot/README.md](career-copilot/README.md)
 ```
 client/           Job tracker UI (React + Vite)
 server/           Job tracker API (Node.js + Express)
+  src/discovery/  Job discovery engine (sources, freshness, dedup, scoring)
+  supabase/       SQL migrations
+docs/             Audit, roadmap, discovery guide
 terraform/        AWS S3 infrastructure
 career-copilot/   AI Career Copilot
   backend/        Agents + API (Python, FastAPI)

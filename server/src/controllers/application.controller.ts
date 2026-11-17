@@ -7,6 +7,7 @@ import {
   updateApplication,
 } from "../services/application.service";
 import { AuthRequest } from "../middleware/auth";
+import { APPLICATION_STATUSES } from "../types/application";
 
 export async function createApplicationHandler(
   req: AuthRequest,
@@ -52,7 +53,7 @@ export async function createApplicationHandler(
       job_url:
         typeof job_url === "string" && job_url.trim() ? job_url.trim() : null,
 
-      status: status || "APPLIED",
+      status: APPLICATION_STATUSES.includes(status) ? status : "APPLIED",
 
       applied_date: applied_date || null,
       follow_up_date: follow_up_date || null,

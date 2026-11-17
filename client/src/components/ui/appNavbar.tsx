@@ -33,6 +33,15 @@ export default function AppNavbar() {
           {isLoggedIn ? (
             <>
               <NavLink
+                to="/discover"
+                className={({ isActive }) =>
+                  `app-nav-link ${isActive ? "app-nav-link-active" : ""}`
+                }
+              >
+                Discover
+              </NavLink>
+
+              <NavLink
                 to="/applications"
                 className={({ isActive }) =>
                   `app-nav-link ${isActive ? "app-nav-link-active" : ""}`

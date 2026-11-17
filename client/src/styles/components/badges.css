@@ -43,3 +43,37 @@
   background: #f1f5f9;
   color: #475569;
 }
+.badge-discovered,
+.badge-under_review {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.badge-ready_to_apply {
+  background: #fae8ff;
+  color: #86198f;
+}
+
+.badge-assessment,
+.badge-phone_screen {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge-technical,
+.badge-final_interview {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-expired,
+.badge-withdrawn,
+.badge-saved {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.badge-accepted {
+  background: #bbf7d0;
+  color: #14532d;
+}

@@ -1,14 +1,21 @@
+// Keep in sync with server/src/types/application.ts.
 export const APPLICATION_STATUSES = [
+  "DISCOVERED",
+  "UNDER_REVIEW",
   "SAVED",
+  "READY_TO_APPLY",
   "APPLIED",
+  "ASSESSMENT",
   "PHONE_SCREEN",
   "INTERVIEW",
   "TECHNICAL",
+  "FINAL_INTERVIEW",
   "OFFER",
   "ACCEPTED",
   "REJECTED",
   "WITHDRAWN",
   "GHOSTED",
+  "EXPIRED",
 ] as const;
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];

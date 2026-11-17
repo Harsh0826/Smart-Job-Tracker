@@ -10,6 +10,7 @@ import { s3Client } from "../config/aws";
 import { env } from "../config/env";
 import { supabase } from "../config/supabase";
 import { streamToBuffer } from "../utils/stream";
+import { safeHeaderFileName } from "../utils/headers";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -269,9 +270,7 @@ export async function getResumeDownloadUrl({
     Bucket: env.awsS3ResumeBucket,
     Key: resume.file_key,
     ResponseContentType: "application/pdf",
-    ResponseContentDisposition: `inline; filename="${
-      resume.file_name ?? "resume.pdf"
-    }"`,
+    ResponseContentDisposition: `inline; filename="${safeHeaderFileName(resume.file_name ?? "resume.pdf")}"`,
   });
 
   const downloadUrl = await getSignedUrl(s3Client, command, {
@@ -299,7 +298,6 @@ export async function extractResumeText({
     })
   );
 
-  // ✅ YOU MISSED THIS LINE
   const pdfBuffer = await streamToBuffer(s3Response.Body);
 
   const parser = new PDFParse({

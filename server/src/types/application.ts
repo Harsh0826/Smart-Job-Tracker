@@ -1,14 +1,28 @@
-export type ApplicationStatus =
-  | "SAVED"
-  | "APPLIED"
-  | "PHONE_SCREEN"
-  | "INTERVIEW"
-  | "TECHNICAL"
-  | "OFFER"
-  | "ACCEPTED"
-  | "REJECTED"
-  | "WITHDRAWN"
-  | "GHOSTED";
+/**
+ * Application lifecycle. Original values are unchanged; DISCOVERED, UNDER_REVIEW, READY_TO_APPLY,
+ * ASSESSMENT, FINAL_INTERVIEW and EXPIRED were added by
+ * supabase/migrations/20261116000000_job_discovery.sql.
+ */
+export const APPLICATION_STATUSES = [
+  "DISCOVERED",
+  "UNDER_REVIEW",
+  "SAVED",
+  "READY_TO_APPLY",
+  "APPLIED",
+  "ASSESSMENT",
+  "PHONE_SCREEN",
+  "INTERVIEW",
+  "TECHNICAL",
+  "FINAL_INTERVIEW",
+  "OFFER",
+  "ACCEPTED",
+  "REJECTED",
+  "WITHDRAWN",
+  "GHOSTED",
+  "EXPIRED",
+] as const;
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 export interface Application {
   id: string;
